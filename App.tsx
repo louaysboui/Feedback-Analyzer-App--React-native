@@ -1,118 +1,136 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+/*import React, { useState } from 'react';
+import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const App = () => {
+  const [text, setText] = useState('');
+  const [sentiment, setSentiment] = useState('');
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  // Function to analyze sentiment
+  const analyzeSentiment = () => {
+    console.log("Analyzing sentiment..."); // Add a log to check if this function is being triggered
+    const fakeSentiment = Math.random() > 0.5 ? 'Positif' : 'Négatif';
+    setSentiment(fakeSentiment);
   };
 
+  console.log("Rendering..."); // Check if this is printed
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={styles.container}>
+      <Text style={styles.title}>Analyse des Sentiments</Text>
+      
+      <TextInput
+        style={styles.input}
+        placeholder="Entrez votre texte ici"
+        value={text}
+        onChangeText={setText}
+        multiline
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+
+      <Button title="Analyser" onPress={analyzeSentiment} />
+
+      {sentiment ? (
+        <Text style={styles.result}>
+          Sentiment: <Text style={{ ...styles.sentimentText, color: sentiment === 'Positif' ? 'green' : 'red' }}>
+            {sentiment}
+          </Text>
+        </Text>
+      ) : null}
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: '#f5f5f5',
   },
-  sectionTitle: {
+  title: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  sectionDescription: {
-    marginTop: 8,
+  input: {
+    height: 100,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 20,
+    backgroundColor: '#fff',
+  },
+  result: {
+    marginTop: 20,
     fontSize: 18,
-    fontWeight: '400',
+    textAlign: 'center',
   },
-  highlight: {
-    fontWeight: '700',
+  sentimentText: {
+    fontWeight: 'bold',
   },
 });
 
+export default App;*/
+
+import * as React from 'react';
+
+
+
+//navigationimports
+import {NavigationContainer}from "@react-navigation/native";
+import {createNativeStackNavigator}from "@react-navigation/native-stack";
+import Home from './screens/Home';
+import details from './screens/details';
+import Explore from './screens/Explore';
+import Dashboard from './screens/Dashboard';
+import Login from './screens/Login';
+import Bottombar from './components/Bottombar';
+import Register from './screens/Register';
+
+export type RootStackParamList ={
+Home:undefined;
+details:{productId:string};
+Explore:undefined;
+Dashboard:undefined;
+Login:undefined;
+Register:undefined;
+Tabs: undefined;
+Bottombar:undefined;
+}
+const Stack = createNativeStackNavigator<RootStackParamList>()
+
+const App = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Explore">
+      {/* ✅ First, show Explore Screen */}
+      <Stack.Screen 
+          name="Explore" 
+          component={Explore} 
+          options={({ }) => ({
+            headerShown: false, 
+            title: "Explore",
+          })}
+        />
+        {/* ✅ Then, show Bottom Tabs (Main Navigation) */}
+        <Stack.Screen name="Tabs" component={Bottombar} />
+        <Stack.Screen   name="Home"  component={Home} />
+        <Stack.Screen   name="details"  component={details} options={{title:"products details"}}/>
+        
+        <Stack.Screen name="Dashboard" component={Dashboard} />
+        <Stack.Screen name="Login" component={Login} />
+        <Stack.Screen name="Register" component={Register} />
+    
+
+    </Stack.Navigator>
+
+      
+    </NavigationContainer>
+  );
+};
+
 export default App;
+
+
