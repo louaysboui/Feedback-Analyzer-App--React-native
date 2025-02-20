@@ -1,1 +1,2 @@
 # Feedback-Analyser-App--React-native
+Le projet consiste à concevoir et développer une application mobile Android pour la collecte, l'analyse et la visualisation des feedbacks des utilisateurs provenant des réseaux sociaux en temps réel. L'application utilisera des techniques de traitement du langage naturel (NLP) et d'intelligence artificielle (IA) pour classer les sentiments des utilisateurs en positif ou négatif. Elle inclura également des tableaux de bord interactifs pour afficher les tendances et des alertes pour notifier les retours critiques.
