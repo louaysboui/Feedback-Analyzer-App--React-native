@@ -7,15 +7,21 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "supabase": "supabase"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.1",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
     "@react-navigation/native-stack": "^7.2.0",
+    "@supabase/functions-js": "^2.4.4",
+    "@supabase/supabase-js": "^2.48.1",
+    "nativewind": "^4.1.23",
     "react": "18.3.1",
     "react-native": "0.77.0",
     "react-native-animatable": "^1.4.0",
+    "react-native-dotenv": "^3.4.11",
     "react-native-gesture-handler": "^2.23.1",
     "react-native-paper": "^5.13.1",
     "react-native-reanimated": "^3.16.7",

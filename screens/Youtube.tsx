@@ -1,163 +1,69 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, Image, FlatList, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import React from 'react';
+import { View, Text, Image, ScrollView, TouchableOpacity, Linking } from 'react-native';
+import { RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../App';
 
-const POPULAR_CHANNELS = [
-  { id: 'mkbhd', name: 'MKBHD' },
-  { id: 'veritasium', name: 'Veritasium' },
-  { id: 'mrbeast', name: 'MrBeast' },
-];
+const channel = {
+  url: "https://www.youtube.com/@jaidenanimations/about",
+  handle: "@jaidenanimations",
+  banner_img: "https://yt3.googleusercontent.com/9b5DW0WsoUtzke1Q54ARDE26FqU4FXAgjnWKEihmDCgYAu2ZLN8qLhvD1WjQT-lFjDbg43HsHQ=w2560-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj",
+  profile_image: "https://yt3.googleusercontent.com/6uDu4HmbcorfDWch6L4FAzv-DFMOstOwhTks-5VUm-kY5puZ_oU4EeA1YOqEM_EDvCTj3UPUW68=s160-c-k-c0x00ffffff-no-rj",
+  name: "JaidenAnimations",
+  subscribers: 14300000,
+  Description: "hi it's jaiden and bird\n\nchannel profile picture made by: me\nchannel banner art made by: https://twitter.com/motiCHIKUBI\n",
+  videos_count: 167,
+  views: 2797022968,
+  Details: {
+    location: "United States"
+  },
+  Links: [
+    "https://jaidenanimations.com",
+    "https://twitch.tv/jaidenanimations",
+    "https://twitter.com/JaidenAnimation",
+    "https://instagram.com/jaiden_animations"
+  ],
+};
 
-const RECENT_SEARCHES = [
-  { id: 'linustechtips', name: 'Linus Tech Tips', subscribers: '15M', profile_image: 'https://yt3.ggpht.com/ytc/AMLnZu_...' },
-  { id: 'teded', name: 'TED-Ed', subscribers: '10M', profile_image: 'https://yt3.ggpht.com/ytc/AMLnZu_...' },
-];
+type YoutubeScreenRouteProp = RouteProp<RootStackParamList, 'Youtube'>;
 
-const YouTubeScreen = () => {
-  const [url, setUrl] = useState('');
+type Props = {
+  route: YoutubeScreenRouteProp;
+};
+
+const Youtube: React.FC<Props> = ({ route }) => {
+  const { channelUrl } = route.params;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Icon name="youtube" size={32} color="red" />
-        <Text style={styles.headerTitle}>YouTube Analyzer</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: 'white' }}>
+      {/* Banner Image */}
+      <Image source={{ uri: channel.banner_img }} style={{ width: '100%', height: 150 }} resizeMode="cover" />
+
+      {/* Profile Section */}
+      <View style={{ alignItems: 'center', marginTop: -50 }}>
+        <Image source={{ uri: channel.profile_image }} style={{ width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: 'white' }} />
+        <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 10 }}>{channel.name}</Text>
+        <Text style={{ color: 'gray' }}>{channel.handle}</Text>
+        <Text style={{ color: 'gray', marginTop: 5 }}>{channel.subscribers.toLocaleString()} subscribers • {channel.videos_count} videos</Text>
+        <Text style={{ color: 'gray', fontSize: 12 }}>Location: {channel.Details.location}</Text>
       </View>
 
-      <ScrollView>
-        {/* Search Input */}
-        <View style={styles.searchBox}>
-          <TextInput
-            value={url}
-            onChangeText={setUrl}
-            placeholder="Paste YouTube channel URL"
-            placeholderTextColor="#6B7280"
-            style={styles.input}
-          />
-          <Pressable style={styles.analyzeButton}>
-            <Text style={styles.analyzeText}>Analyze</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.exampleText}>Example: https://youtube.com/@mkbhd</Text>
+      {/* Description */}
+      <View style={{ padding: 16 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>About</Text>
+        <Text style={{ color: 'gray', marginTop: 5 }}>{channel.Description}</Text>
+      </View>
 
-        {/* Popular Channels */}
-        <Text style={styles.sectionTitle}>Popular Channels</Text>
-        <FlatList
-          data={POPULAR_CHANNELS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Pressable style={styles.popularChannel}>
-              <Text style={styles.popularText}>{item.name}</Text>
-            </Pressable>
-          )}
-        />
-
-        {/* Recent Searches */}
-        <Text style={styles.sectionTitle}>Recent Searches</Text>
-        <FlatList
-          data={RECENT_SEARCHES}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Pressable style={styles.recentItem}>
-              <Image source={{ uri: item.profile_image }} style={styles.profileImage} />
-              <View>
-                <Text style={styles.channelName}>{item.name}</Text>
-                <Text style={styles.subscribers}>{item.subscribers} subscribers</Text>
-              </View>
-            </Pressable>
-          )}
-        />
-      </ScrollView>
-    </View>
+      {/* Social Links */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Links</Text>
+        {channel.Links.map((link, index) => (
+          <TouchableOpacity key={index} onPress={() => Linking.openURL(link)}>
+            <Text style={{ color: 'blue', marginTop: 5 }}>{link}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
   );
 };
 
-export default YouTubeScreen;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'white',
-    padding: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 10,
-  },
-  input: {
-    flex: 1,
-    height: 40,
-    fontSize: 16,
-    color: 'black',
-  },
-  analyzeButton: {
-    backgroundColor: 'red',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-  },
-  analyzeText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  exampleText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginVertical: 10,
-  },
-  popularChannel: {
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  popularText: {
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  recentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  channelName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  subscribers: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-});
+export default Youtube;

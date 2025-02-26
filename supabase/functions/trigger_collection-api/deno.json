@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+      "lib": ["deno.ns", "dom", "esnext"],
+      "types": ["./supabase/functions/_shared/supabase-env.d.ts"]
+  },
+  "lint": {
+      "rules": {
+          "tags": ["recommended"]
+      }
+  },
+  "fmt": {
+      "options": {
+          "useTabs": false,
+          "lineWidth": 80,
+          "indentWidth": 2,
+          "singleQuote": false,
+          "proseWrap": "always"
+      }
+  },
+  "importMap": "./import_map.json"
+}
