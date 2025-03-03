@@ -1,26 +1,53 @@
 import {
   SafeAreaView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
-import React from "react";
+import React, { useRef } from "react";
 import Spacing from "../constants/Spacing";
 import FontSize from "../constants/FontSize";
 import Colors from "../constants/Colors";
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import Ionicons from "react-native-vector-icons/Ionicons";
 import AppTextInput from "../components/AppTextInput";
+import { supabase } from "../lib/supabase"; // Adjust the path as necessary
 
-export type RootStackParamList ={
-  Register: undefined;
-  Login: undefined;
-};
+const RegisterScreen: React.FC = () => {
+  // Using refs to capture user input
+  const nameRef = useRef("");
+  const emailRef = useRef("");
+  const passwordRef = useRef("");
+  const confirmPasswordRef = useRef("");
+  const [loading, setLoading] = React.useState(false);
 
-type Props = NativeStackScreenProps<RootStackParamList, "Register">;
+  const handleSignUp = async () => {
+    const name = nameRef.current.trim();
+    const email = emailRef.current.trim();
+    const password = passwordRef.current.trim();
+    const confirmPassword = confirmPasswordRef.current.trim();
 
-const RegisterScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return;
+    }
+
+    setLoading(true);
+    const { data: { session }, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options:  { data: { name } },
+    });
+    setLoading(false);
+    console.log("session:", session);
+    console.log("error:", error);
+    if (error) {
+      Alert.alert("Sign up Error", error.message);
+    } else {
+      Alert.alert("Success", "Sign up successful!");
+    }
+  };
+
   return (
     <SafeAreaView>
       <View style={{ padding: Spacing * 2 }}>
@@ -29,38 +56,54 @@ const RegisterScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
             style={{
               fontSize: FontSize.xLarge,
               color: Colors.primary,
-              fontFamily: 'Poppins-Bold',
-              marginVertical: Spacing * 3,
+              fontFamily: "Poppins-Bold",
+              marginVertical: Spacing * 2,
             }}
           >
             Create account
           </Text>
           <Text
             style={{
-              fontFamily: 'Poppins-Regular',
+              fontFamily: "Poppins-Regular",
               fontSize: FontSize.small,
               maxWidth: "80%",
               textAlign: "center",
+              marginBottom: Spacing,
             }}
           >
-            Create an account so you can explore all the existing jobs
+            Create an account so you can analyze your feedback
           </Text>
         </View>
 
         {/* Input Fields */}
-        <View style={{ marginVertical: Spacing * 3 }}>
-          <AppTextInput placeholder="Email" />
-          <AppTextInput placeholder="Password" secureTextEntry />
-          <AppTextInput placeholder="Confirm Password" secureTextEntry />
+        <View style={{ marginVertical: Spacing }}>
+          <AppTextInput
+            placeholder="Name"
+            onChangeText={(text) => (nameRef.current = text)}
+          />
+          <AppTextInput
+            placeholder="Email"
+            onChangeText={(text) => (emailRef.current = text)}
+          />
+          <AppTextInput
+            placeholder="Password"
+            secureTextEntry
+            onChangeText={(text) => (passwordRef.current = text)}
+          />
+          <AppTextInput
+            placeholder="Confirm Password"
+            secureTextEntry
+            onChangeText={(text) => (confirmPasswordRef.current = text)}
+          />
         </View>
 
-        {/* ✅ Fixed: "Sign Up" Button Now Navigates to Login */}
+        {/* Sign up button */}
         <TouchableOpacity
-          onPress={() => navigate("Login")} // ✅ Navigation added here
+          onPress={handleSignUp}
           style={{
             padding: Spacing * 2,
             backgroundColor: Colors.primary,
-            marginVertical: Spacing * 3,
+            marginVertical: Spacing,
             borderRadius: Spacing,
             shadowColor: Colors.primary,
             shadowOffset: { width: 0, height: Spacing },
@@ -70,7 +113,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
         >
           <Text
             style={{
-              fontFamily: 'Poppins-Bold',
+              fontFamily: "Poppins-Bold",
               color: Colors.onPrimary,
               textAlign: "center",
               fontSize: FontSize.large,
@@ -81,13 +124,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
         </TouchableOpacity>
 
         {/* Already have an account? */}
-        <TouchableOpacity
-          onPress={() => navigate("Login")}
-          style={{ padding: Spacing }}
-        >
+        <TouchableOpacity onPress={() => {}} style={{ padding: Spacing }}>
           <Text
             style={{
-              fontFamily: 'Poppins-SemiBold',
+              fontFamily: "Poppins-SemiBold",
               color: Colors.text,
               textAlign: "center",
               fontSize: FontSize.small,
@@ -98,65 +138,65 @@ const RegisterScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
         </TouchableOpacity>
 
         {/* Or continue with */}
-        <View style={{ marginVertical: Spacing * 3 }}>
+        <View style={{ marginVertical: Spacing }}>
           <Text
             style={{
-              fontFamily: 'Poppins-SemiBold',
+              fontFamily: "Poppins-SemiBold",
               color: Colors.primary,
               textAlign: "center",
               fontSize: FontSize.small,
+              marginBottom: Spacing / 2,
             }}
           >
             Or continue with
           </Text>
-
           <View
             style={{
-              marginTop: Spacing,
+              marginTop: Spacing / 2,
               flexDirection: "row",
               justifyContent: "center",
             }}
           >
             <TouchableOpacity
               style={{
-                padding: Spacing,
+                padding: Spacing / 1.5,
                 backgroundColor: Colors.gray,
                 borderRadius: Spacing / 2,
-                marginHorizontal: Spacing,
+                marginHorizontal: Spacing / 2,
               }}
             >
               <Ionicons
                 name="logo-google"
                 color={Colors.text}
-                size={Spacing * 2}
+                size={Spacing * 1.5}
               />
             </TouchableOpacity>
             <TouchableOpacity
               style={{
-                padding: Spacing,
+                padding: Spacing / 1.5,
                 backgroundColor: Colors.gray,
                 borderRadius: Spacing / 2,
-                marginHorizontal: Spacing,
+                marginHorizontal: Spacing / 2,
               }}
             >
               <Ionicons
                 name="logo-apple"
                 color={Colors.text}
-                size={Spacing * 2}
+                size={Spacing * 1.5}
               />
             </TouchableOpacity>
             <TouchableOpacity
               style={{
-                padding: Spacing,
+                padding: Spacing / 1.5,
                 backgroundColor: Colors.gray,
                 borderRadius: Spacing / 2,
-                marginHorizontal: Spacing,
+                marginHorizontal: Spacing / 2,
               }}
             >
               <Ionicons
                 name="logo-facebook"
                 color={Colors.text}
-                size={Spacing * 2}
+                size={Spacing * 1.5}
               />
             </TouchableOpacity>
           </View>

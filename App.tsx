@@ -10,6 +10,8 @@ import Bottombar from './components/Bottombar';
 import Register from './screens/Register';
 import YoutubeHome from './screens/YoutubeHome';
 import Youtube from './screens/Youtube';
+import 'react-native-url-polyfill/auto';
+
 
 export type RootStackParamList = {
   Home: undefined;
@@ -29,7 +31,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const App = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="YoutubeHome">
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Explore">
         <Stack.Screen 
           name="Explore" 
           component={Explore} 

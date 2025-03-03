@@ -32,8 +32,7 @@ if(!response.ok){
   });
 }
 
-// 1) Rename the Bright Data response
-const brightData = await response.json();  
+const data = await response.json();  
 
 // store job data in database
 const supabase = createClient(
@@ -41,16 +40,15 @@ const supabase = createClient(
     Deno.env.get('SUPABASE_ANON_KEY') ?? '',
     { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
   ) 
-// 2) Then rename the Supabase result
-const { data: supabaseData, error } = await supabase
-  .from('scrape_jobs')
-  .insert({
-    id: brightData.snapshot_id,
-    status: 'running',
-  });
+const result = await supabase.from('scrape_jobs').insert({
+  id:data.snapshot_id,
+  status:"running",
+})
+console.log("result :" ,result);  
 
-return new Response(JSON.stringify({ brightData, supabaseData, error }), {
-  headers: { 'Content-Type': 'application/json' },
+  return new Response(JSON.stringify({data}), {
+    headers: { "Content-Type": "application/json" },
+  });
 });
 
 /* To invoke locally:
@@ -64,4 +62,3 @@ return new Response(JSON.stringify({ brightData, supabaseData, error }), {
     --data '{"name":"Functions"}'
 
 */
-}); 
