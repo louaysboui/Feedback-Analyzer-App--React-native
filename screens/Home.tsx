@@ -1,27 +1,62 @@
-import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
-import React, { useState } from 'react';
-// Navigation
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  SafeAreaView,
+  StyleSheet,
+  Alert,
+  TextInput,
+  Button,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+import { useAuth } from '../components/AuthContext';
+import { getUserData } from '../service/userService';
 import { RootStackParamList } from '../App';
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-export default function Home({ navigation }: HomeProps) {
+const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
+  // 1) Auth and user data
+  const { user } = useAuth();
+  const [userData, setUserData] = useState<any>(null);
+
+  // 2) Sentiment analysis states
   const [text, setText] = useState('');
   const [sentiment, setSentiment] = useState('');
 
-  // Function to analyze sentiment
+  // Fetch user data and show welcome alert
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (user) {
+        const data = await getUserData(user.id);
+        setUserData(data);
+        if (data?.name) {
+          Alert.alert('Welcome', `Welcome, ${data.name}!`);
+        }
+      }
+    };
+    fetchUserData();
+  }, [user]);
+
+  // Simple mock sentiment analysis
   const analyzeSentiment = () => {
-    console.log("Analyzing sentiment..."); // Add a log to check if this function is being triggered
+    console.log('Analyzing sentiment...');
     const fakeSentiment = Math.random() > 0.5 ? 'Positif' : 'Négatif';
     setSentiment(fakeSentiment);
   };
 
-  console.log("Rendering..."); // Check if this is printed
   return (
-<View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      {/* Notification / Welcome Section */}
+      <View style={styles.welcomeContainer}>
+        <Text style={styles.welcomeText}>
+          Welcome, {userData?.name || 'User'}!
+        </Text>
+      </View>
+
+      {/* Sentiment Analyzer UI */}
       <Text style={styles.title}>Feedback Analyzer</Text>
-      
       <TextInput
         style={styles.input}
         placeholder="Entrez votre texte ici"
@@ -29,26 +64,42 @@ export default function Home({ navigation }: HomeProps) {
         onChangeText={setText}
         multiline
       />
-
       <Button title="Analyser" onPress={analyzeSentiment} />
 
       {sentiment ? (
         <Text style={styles.result}>
-          Sentiment: <Text style={{ ...styles.sentimentText, color: sentiment === 'Positif' ? 'green' : 'red' }}>
+          Sentiment:{' '}
+          <Text
+            style={[
+              styles.sentimentText,
+              { color: sentiment === 'Positif' ? 'green' : 'red' },
+            ]}
+          >
             {sentiment}
           </Text>
         </Text>
       ) : null}
-    </View>
+    </SafeAreaView>
   );
 };
+
+export default HomeScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     padding: 20,
     backgroundColor: '#f5f5f5',
+  },
+  welcomeContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
   },
   title: {
     fontSize: 24,

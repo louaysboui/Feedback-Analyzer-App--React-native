@@ -10,8 +10,8 @@ import Bottombar from './components/Bottombar';
 import Register from './screens/Register';
 import YoutubeHome from './screens/YoutubeHome';
 import Youtube from './screens/Youtube';
+import { AuthProvider } from './components/AuthContext';
 import 'react-native-url-polyfill/auto';
-
 
 export type RootStackParamList = {
   Home: undefined;
@@ -23,33 +23,35 @@ export type RootStackParamList = {
   Tabs: undefined;
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
-  Youtube: { channelUrl: string };
+  Youtube: { channelUrl: string } ;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const App = () => {
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Explore">
-        <Stack.Screen 
-          name="Explore" 
-          component={Explore} 
-          options={({ }) => ({
-            headerShown: false, 
-            title: "Explore",
-          })}
-        />
-        <Stack.Screen name="Tabs" component={Bottombar} />
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="details" component={details} options={{ title: "products details" }} />
-        <Stack.Screen name="Dashboard" component={Dashboard} />
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="Register" component={Register} />
-        <Stack.Screen name="YoutubeHome" component={YoutubeHome} />
-        <Stack.Screen name="Youtube" component={Youtube} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Explore">
+          <Stack.Screen 
+            name="Explore" 
+            component={Explore} 
+            options={({ }) => ({
+              headerShown: false, 
+              title: "Explore",
+            })}
+          />
+          <Stack.Screen name="Tabs" component={Bottombar} />
+          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="details" component={details} options={{ title: "products details" }} />
+          <Stack.Screen name="Dashboard" component={Dashboard} />
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="Register" component={Register} />
+          <Stack.Screen name="YoutubeHome" component={YoutubeHome} />
+          <Stack.Screen name="Youtube" component={Youtube} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthProvider>
   );
 };
 

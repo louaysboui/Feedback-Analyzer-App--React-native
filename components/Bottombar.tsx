@@ -13,6 +13,7 @@ import Profile from '../screens/Profile';
 import Settings from '../screens/Settings';
 import Youtube from '../screens/Youtube';
 import Notificaton from '../screens/Notificaton';
+import YoutubeHome from '../screens/YoutubeHome';
 
 const Tab = createBottomTabNavigator(); // ✅ Define Tab Navigator
 
@@ -31,7 +32,7 @@ const TabArr: TabItem[] = [
   { route: 'Notification', label: 'Notification', type: Icons.MaterialCommunityIcons, activeIcon: 'bell-badge-outline', inActiveIcon: 'bell-badge-outline', component: Notificaton },
   { route: 'Dashboard', label: 'Dashboard', type: Icons.Ionicons, activeIcon: 'grid', inActiveIcon: 'grid-outline', component: Dashboard },
   { route: 'Home', label: 'Home', type: Icons.Ionicons, activeIcon: 'home', inActiveIcon: 'home-outline', component: Home },
-  { route: 'Youtube', label: 'Youtube', type: Icons.MaterialCommunityIcons, activeIcon: 'youtube-tv', inActiveIcon: 'youtube-tv', component: Youtube },
+  { route: 'YoutubeHome', label: 'YoutubeHome', type: Icons.MaterialCommunityIcons, activeIcon: 'youtube-tv', inActiveIcon: 'youtube-tv', component: YoutubeHome },
   { route: 'Settings', label: 'Settings', type: Icons.FontAwesome, activeIcon: 'comments', inActiveIcon: 'comments', component: Settings},
 ];
 
