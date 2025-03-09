@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase"; // Adjust the path as necessary
+import { supabase } from "../../lib/supabase"; // Adjust the path as necessary
 
 export const getUserData = async (userId: string) => {
   const { data, error } = await supabase

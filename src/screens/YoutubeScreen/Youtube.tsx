@@ -1,7 +1,11 @@
 import React from 'react';
 import { View, Text, Image, ScrollView, TouchableOpacity, Linking } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../App';
+import { RootStackParamList } from '../../../App';
+//import { StackScreenProps } from '@react-navigation/native-stack';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+
+
 
 const channel = {
   url: "https://www.youtube.com/@jaidenanimations/about",
@@ -24,14 +28,12 @@ const channel = {
   ],
 };
 
-type YoutubeScreenRouteProp = RouteProp<RootStackParamList, 'Youtube'>;
 
-type Props = {
-  route: YoutubeScreenRouteProp;
-};
+// 🛠 Correctly define props for the Youtube screen
+type YoutubeScreenProps = NativeStackScreenProps<RootStackParamList, 'Youtube'>;
 
-const Youtube: React.FC<Props> = ({ route }) => {
-  const { channelUrl } = route.params;
+const Youtube: React.FC<YoutubeScreenProps> = ({ route }) => {
+  const { channelUrl } = route.params; // ✅ No more TypeScript error
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: 'white' }}>

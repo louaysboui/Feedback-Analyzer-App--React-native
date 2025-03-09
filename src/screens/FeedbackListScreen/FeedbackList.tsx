@@ -1,10 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native'
 import React from 'react'
 
-export default function Settings() {
+export default function FeedbackList() {
   return (
     <View>
-      <Text>Settings</Text>
+      <Text>FeedbackList</Text>
     </View>
   )
 }

@@ -2,13 +2,13 @@ import { View, Text, SafeAreaView, TouchableOpacity, Alert } from 'react-native'
 import React, { useRef } from 'react';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import Colors from '../constants/Colors';
-import { RootStackParamList } from '../App';
-import FontSize from '../constants/FontSize';
-import Spacing from '../constants/Spacing';
-import AppTextInput from '../components/AppTextInput';
-import { supabase } from "../lib/supabase"; // Adjust the path as necessary
-import { useAuth } from '../components/AuthContext';
+import Colors from '../../constants/Colors';
+import { RootStackParamList } from '../../../App';
+import FontSize from '../../constants/FontSize';
+import Spacing from '../../constants/Spacing';
+import AppTextInput from '../../components/AppTextInput';
+import { supabase } from "../../../lib/supabase"; // Adjust the path as necessary
+import { useAuth } from '../../components/AuthContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
@@ -17,6 +17,7 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
   const emailRef = useRef("");
   const passwordRef = useRef("");
   const [loading, setLoading] = React.useState(false);
+  const [errors, setErrors] = React.useState<{ email?: string; password?: string }>({});  
 
   const handleLogin = async () => {
     const email = emailRef.current.trim();
@@ -42,6 +43,63 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
       navigate("Tabs");
     }
   };
+
+  const validatePassword = (password: string) => {
+    let passwordError = "";
+  
+    if (password.length < 8) {
+      passwordError = "Error: Password must be at least 8 characters";
+    } else if (!/[A-Z]/.test(password)) {
+      passwordError = "Error: Password must contain at least one uppercase letter";
+    } else if (!/[0-9]/.test(password)) {
+      passwordError = "Error: Password must contain at least one number";
+    }
+  
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (passwordError) {
+        updatedErrors.password = passwordError;
+      } else {
+        // Remove password error if validation passes
+        delete updatedErrors.password;
+      }
+      return updatedErrors;
+    });
+  
+    return passwordError === "";
+  };
+
+  const validateEmail = (email: string) => {
+    let emailError = "";
+  
+    if (!email.includes("@")) {
+      emailError = "Error: '@' is required";
+    } else if (!email.includes(".")) {
+      emailError = "Error: '.' is required";
+    } else if (email.length < 5) {
+      emailError = "Error: Email is too short";
+    } else {
+      // Regular email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        emailError = "Invalid email format";
+      }
+    }
+  
+    // Update state: if there's an error, set it; otherwise, remove the email error.
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (emailError) {
+        updatedErrors.email = emailError;
+      } else {
+        delete updatedErrors.email;
+      }
+      return updatedErrors;
+    });
+  
+    return emailError === "";
+  };
+  
 
   return (
     <SafeAreaView>
@@ -73,13 +131,19 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
         <View style={{ marginVertical: Spacing * 3 }}>
           <AppTextInput
             placeholder="Email"
-            onChangeText={(text) => (emailRef.current = text)}
-          />
+             onChangeText={(text) => (emailRef.current = text)}
+            onBlur={() => validateEmail(emailRef.current)} // Trigger validation on leaving input
+            />
+            {errors.email && (
+            <Text style={{ color: "red", marginLeft: 10 }}>{errors.email}</Text>
+            )}
           <AppTextInput
             placeholder="Password"
             secureTextEntry
-            onChangeText={(text) => (passwordRef.current = text)}
-          />
+             onChangeText={(text) => (passwordRef.current = text)}
+            onBlur={() => validatePassword(passwordRef.current)}
+              />
+            {errors.password && <Text style={{ color: "red", marginLeft: 10 }}>{errors.password}</Text>}
         </View>
 
         <View>

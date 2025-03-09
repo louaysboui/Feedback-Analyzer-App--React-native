@@ -6,14 +6,11 @@ import Icon, { Icons } from '../components/Icons';
 import Colors from '../constants/Colors';
 
 // Import Screens
-import Home from '../screens/Home';
-import Dashboard from '../screens/Dashboard';
-import Details from '../screens/details';
-import Profile from '../screens/Profile';
-import Settings from '../screens/Settings';
-import Youtube from '../screens/Youtube';
-import Notificaton from '../screens/Notificaton';
-import YoutubeHome from '../screens/YoutubeHome';
+import Home from '../screens/HomeScreen/Home';
+import Dashboard from '../screens/DashboardScreen/Dashboard';
+import Notificaton from '../screens/NotificationScreen/Notificaton';
+import YoutubeHome from '../screens/YoutubeHomeScreen/YoutubeHome';
+import FeedbackList from '../screens/FeedbackListScreen/FeedbackList';
 
 const Tab = createBottomTabNavigator(); // ✅ Define Tab Navigator
 
@@ -33,7 +30,7 @@ const TabArr: TabItem[] = [
   { route: 'Dashboard', label: 'Dashboard', type: Icons.Ionicons, activeIcon: 'grid', inActiveIcon: 'grid-outline', component: Dashboard },
   { route: 'Home', label: 'Home', type: Icons.Ionicons, activeIcon: 'home', inActiveIcon: 'home-outline', component: Home },
   { route: 'YoutubeHome', label: 'YoutubeHome', type: Icons.MaterialCommunityIcons, activeIcon: 'youtube-tv', inActiveIcon: 'youtube-tv', component: YoutubeHome },
-  { route: 'Settings', label: 'Settings', type: Icons.FontAwesome, activeIcon: 'comments', inActiveIcon: 'comments', component: Settings},
+  { route: 'FeedbackList', label: 'FeedbackList', type: Icons.FontAwesome, activeIcon: 'comments', inActiveIcon: 'comments', component: FeedbackList},
 ];
 
 // Define Props Type for TabButton

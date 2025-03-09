@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Define the shape of the user object
 interface User {
@@ -13,6 +14,7 @@ interface AuthContextType {
   user: User | null;
   setAuth: (authUser: User | null) => void;
   setUserData: (userData: Partial<User>) => void;
+  isLoading: boolean;
 }
 
 // Create the AuthContext with a default value
@@ -25,9 +27,32 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const setAuth = (authUser: User | null) => {
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  const setAuth = async (authUser: User | null) => {
     setUser(authUser);
+    if (authUser) {
+      await AsyncStorage.setItem('user', JSON.stringify(authUser));
+    } else {
+      await AsyncStorage.removeItem('user');
+    }
   };
 
   const setUserData = (userData: Partial<User>) => {
@@ -35,7 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, setAuth, setUserData }}>
+    <AuthContext.Provider value={{ user, setAuth, setUserData, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

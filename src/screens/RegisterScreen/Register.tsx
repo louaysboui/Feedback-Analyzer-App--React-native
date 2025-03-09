@@ -6,12 +6,12 @@ import {
   Alert,
 } from "react-native";
 import React, { useRef } from "react";
-import Spacing from "../constants/Spacing";
-import FontSize from "../constants/FontSize";
-import Colors from "../constants/Colors";
+import Spacing from "../../constants/Spacing";
+import FontSize from "../../constants/FontSize";
+import Colors from "../../constants/Colors";
 import Ionicons from "react-native-vector-icons/Ionicons";
-import AppTextInput from "../components/AppTextInput";
-import { supabase } from "../lib/supabase"; // Adjust the path as necessary
+import AppTextInput from "../../components/AppTextInput";
+import { supabase } from "../../../lib/supabase"; // Adjust the path as necessary
 
 const RegisterScreen: React.FC = () => {
   // Using refs to capture user input
@@ -20,6 +20,7 @@ const RegisterScreen: React.FC = () => {
   const passwordRef = useRef("");
   const confirmPasswordRef = useRef("");
   const [loading, setLoading] = React.useState(false);
+  const [errors, setErrors] = React.useState<{ email?: string; password?: string }>({});
 
   const handleSignUp = async () => {
     const name = nameRef.current.trim();
@@ -47,6 +48,67 @@ const RegisterScreen: React.FC = () => {
       Alert.alert("Success", "Sign up successful!");
     }
   };
+  const validateEmail = (email: string) => {
+    let emailError = "";
+  
+    if (!email.includes("@")) {
+      emailError = "Error: '@' is required";
+    } else if (!email.includes(".")) {
+      emailError = "Error: '.' is required";
+    } else if (email.length < 5) {
+      emailError = "Error: Email is too short";
+    } else {
+      // Regular email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        emailError = "Invalid email format";
+      }
+    }
+  
+    // Update state: if there's an error, set it; otherwise, remove the email error.
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (emailError) {
+        updatedErrors.email = emailError;
+      } else {
+        delete updatedErrors.email;
+      }
+      return updatedErrors;
+    });
+  
+    return emailError === "";
+  };
+  
+  
+  
+
+  const validatePassword = (password: string) => {
+    let passwordError = "";
+  
+    if (password.length < 8) {
+      passwordError = "Error: Password must be at least 8 characters";
+    } else if (!/[A-Z]/.test(password)) {
+      passwordError = "Error: Password must contain at least one uppercase letter";
+    } else if (!/[0-9]/.test(password)) {
+      passwordError = "Error: Password must contain at least one number";
+    }
+  
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (passwordError) {
+        updatedErrors.password = passwordError;
+      } else {
+        // Remove password error if validation passes
+        delete updatedErrors.password;
+      }
+      return updatedErrors;
+    });
+  
+    return passwordError === "";
+  };
+  
+  
+
 
   return (
     <SafeAreaView>
@@ -82,14 +144,20 @@ const RegisterScreen: React.FC = () => {
             onChangeText={(text) => (nameRef.current = text)}
           />
           <AppTextInput
-            placeholder="Email"
-            onChangeText={(text) => (emailRef.current = text)}
-          />
+              placeholder="Email"
+              onChangeText={(text) => (emailRef.current = text)}
+             onBlur={() => validateEmail(emailRef.current)} // Trigger validation on leaving input
+              />
+            {errors.email && (
+            <Text style={{ color: "red", marginLeft: 10 }}>{errors.email}</Text>
+            )}
           <AppTextInput
             placeholder="Password"
             secureTextEntry
             onChangeText={(text) => (passwordRef.current = text)}
-          />
+            onBlur={() => validatePassword(passwordRef.current)}
+              />
+             {errors.password && <Text style={{ color: "red", marginLeft: 10 }}>{errors.password}</Text>}
           <AppTextInput
             placeholder="Confirm Password"
             secureTextEntry
