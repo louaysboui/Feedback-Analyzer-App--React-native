@@ -10,6 +10,12 @@ import AppTextInput from '../../components/AppTextInput';
 import { supabase } from "../../../lib/supabase"; // Adjust the path as necessary
 import { useAuth } from '../../components/AuthContext';
 
+type User = {
+  id: string;
+  email: string;
+  name: string;
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
 const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
@@ -22,24 +28,28 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
   const handleLogin = async () => {
     const email = emailRef.current.trim();
     const password = passwordRef.current.trim();
-
+  
     if (!email || !password) {
       Alert.alert("Login", "Please fill all the fields!");
       return;
     }
-
+  
     setLoading(true);
     const { data: { session }, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     setLoading(false);
-    console.log("session:", session);
-    console.log("error:", error);
+  
     if (error) {
       Alert.alert("Sign in Error", error.message);
-    } else {
-      setAuth(session?.user ? { ...session.user, email: session.user.email || '' } : null);
+    } else if (session?.user) {
+      const userData: User = {
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata?.name || '',
+      };
+      setAuth(userData); // This will persist the user in AsyncStorage via AuthContext
       navigate("Tabs");
     }
   };

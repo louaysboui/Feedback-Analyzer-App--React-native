@@ -1,26 +1,23 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../../lib/supabase'; // Adjust the path as necessary
 
-// Define the shape of the user object
 interface User {
   id: string;
   email: string;
   name?: string;
-  // Add other user properties as needed
 }
 
-// Define the shape of the AuthContext
 interface AuthContextType {
   user: User | null;
   setAuth: (authUser: User | null) => void;
   setUserData: (userData: Partial<User>) => void;
   isLoading: boolean;
+  signOut: () => Promise<void>;
 }
 
-// Create the AuthContext with a default value
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define the props for the AuthProvider component
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -29,21 +26,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load session and user data on app start
   useEffect(() => {
-    const loadUserData = async () => {
+    const initializeAuth = async () => {
       try {
-        const userData = await AsyncStorage.getItem('user');
-        if (userData) {
-          setUser(JSON.parse(userData));
+        // Check if there's an active session in Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const userData: User = {
+            id: session.user.id,
+            email: session.user.email || '',
+            name: session.user.user_metadata?.name || '',
+          };
+          setUser(userData);
+          await AsyncStorage.setItem('user', JSON.stringify(userData));
         }
       } catch (error) {
-        console.error('Failed to load user data:', error);
+        console.error('Failed to initialize auth:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadUserData();
+    initializeAuth();
+
+    // Listen for auth state changes (e.g., sign-in, sign-out)
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const userData: User = {
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || '',
+        };
+        setUser(userData);
+        AsyncStorage.setItem('user', JSON.stringify(userData));
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        AsyncStorage.removeItem('user');
+      }
+    });
+
+    // Cleanup subscription on unmount
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const setAuth = async (authUser: User | null) => {
@@ -59,14 +85,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser((prevUser) => (prevUser ? { ...prevUser, ...userData } : null));
   };
 
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    await AsyncStorage.removeItem('user');
+  };
+
   return (
-    <AuthContext.Provider value={{ user, setAuth, setUserData, isLoading }}>
+    <AuthContext.Provider value={{ user, setAuth, setUserData, isLoading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-// Custom hook to use the AuthContext
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {

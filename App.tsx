@@ -9,7 +9,7 @@ import Bottombar from './src/components/Bottombar';
 import Register from './src/screens/RegisterScreen/Register';
 import YoutubeHome from './src/screens/YoutubeHomeScreen/YoutubeHome';
 import Youtube from './src/screens/YoutubeScreen/Youtube';
-import { AuthProvider } from './src/components/AuthContext';
+import { AuthProvider, useAuth } from './src/components/AuthContext';
 import 'react-native-url-polyfill/auto';
 
 export type RootStackParamList = {
@@ -21,33 +21,38 @@ export type RootStackParamList = {
   Tabs: undefined;
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
-  Youtube: { channelUrl: string } ;
+  Youtube: { channelUrl: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+const AppContent = () => {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null; // You can add a loading spinner here if desired
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={user ? 'Tabs' : 'Login'}>
+        <Stack.Screen name="Explore" component={Explore} />
+        <Stack.Screen name="Tabs" component={Bottombar} />
+        <Stack.Screen name="Home" component={Home} />
+        <Stack.Screen name="Dashboard" component={Dashboard} />
+        <Stack.Screen name="Login" component={Login} />
+        <Stack.Screen name="Register" component={Register} />
+        <Stack.Screen name="YoutubeHome" component={YoutubeHome} />
+        <Stack.Screen name="Youtube" component={Youtube} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
 const App = () => {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Explore">
-          <Stack.Screen 
-            name="Explore" 
-            component={Explore} 
-            options={({ }) => ({
-              headerShown: false, 
-              title: "Explore",
-            })}
-          />
-          <Stack.Screen name="Tabs" component={Bottombar} />
-          <Stack.Screen name="Home" component={Home} />
-          <Stack.Screen name="Dashboard" component={Dashboard} />
-          <Stack.Screen name="Login" component={Login} />
-          <Stack.Screen name="Register" component={Register} />
-          <Stack.Screen name="YoutubeHome" component={YoutubeHome} />
-          <Stack.Screen name="Youtube" component={Youtube} />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <AppContent />
     </AuthProvider>
   );
 };
