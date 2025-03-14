@@ -12,8 +12,12 @@ import Colors from "../../constants/Colors";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import AppTextInput from "../../components/AppTextInput";
 import { supabase } from "../../../lib/supabase"; // Adjust the path as necessary
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../../App";
 
-const RegisterScreen: React.FC = () => {
+type Props = NativeStackScreenProps<RootStackParamList, "Register">;
+
+const RegisterScreen: React.FC <Props>= ({navigation:{navigate}}) => {
   // Using refs to capture user input
   const nameRef = useRef("");
   const emailRef = useRef("");
@@ -34,20 +38,31 @@ const RegisterScreen: React.FC = () => {
     }
 
     setLoading(true);
-    const { data: { session }, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options:  { data: { name } },
+  const { data: { session }, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { name } },
+  });
+  setLoading(false);
+
+  if (error) {
+    Alert.alert("Sign up Error", error.message);
+  } else {
+    // Resend verification email after successful signup
+    const { data, error: sendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
     });
-    setLoading(false);
-    console.log("session:", session);
-    console.log("error:", error);
-    if (error) {
-      Alert.alert("Sign up Error", error.message);
+
+    if (sendError) {
+      console.error('Error resending verification email:', sendError.message);
     } else {
-      Alert.alert("Success", "Sign up successful!");
+      console.log('Verification email resent successfully');
     }
-  };
+
+    Alert.alert("Success", "Sign up successful! Please check your email to verify your account.");
+  }
+};
   const validateEmail = (email: string) => {
     let emailError = "";
   
@@ -108,6 +123,7 @@ const RegisterScreen: React.FC = () => {
   };
   
   
+
 
 
   return (
@@ -192,7 +208,7 @@ const RegisterScreen: React.FC = () => {
         </TouchableOpacity>
 
         {/* Already have an account? */}
-        <TouchableOpacity onPress={() => {}} style={{ padding: Spacing }}>
+        <TouchableOpacity onPress={() => navigate("Login")} style={{ padding: Spacing }}>
           <Text
             style={{
               fontFamily: "Poppins-SemiBold",

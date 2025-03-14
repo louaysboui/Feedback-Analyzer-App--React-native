@@ -11,6 +11,8 @@ import YoutubeHome from './src/screens/YoutubeHomeScreen/YoutubeHome';
 import Youtube from './src/screens/YoutubeScreen/Youtube';
 import { AuthProvider, useAuth } from './src/components/AuthContext';
 import 'react-native-url-polyfill/auto';
+import { Linking } from 'react-native';
+import { supabase } from './lib/supabase';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -32,6 +34,33 @@ const AppContent = () => {
   if (isLoading) {
     return null; // You can add a loading spinner here if desired
   }
+
+  const handleDeepLink = async (url: string) => {
+    if (url.startsWith('myapp://verify')) {
+      const urlParams = new URL(url);
+      const code = urlParams.searchParams.get('code');
+      if (code) {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.error(error);
+        } else {
+          console.log('Session created:', data.session);
+        }
+      }
+    }
+  };
+  
+  React.useEffect(() => {
+    const subscription = Linking.addEventListener('url', (event) => {
+      handleDeepLink(event.url);
+    });
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   return (
     <NavigationContainer>
