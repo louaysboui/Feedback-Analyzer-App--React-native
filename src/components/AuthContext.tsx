@@ -6,6 +6,10 @@ interface User {
   id: string;
   email: string;
   name?: string;
+  occupation:string;
+  phone:string;
+  location:string;
+  profileImage?: string;
 }
 
 interface AuthContextType {
@@ -37,6 +41,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             id: session.user.id,
             email: session.user.email || '',
             name: session.user.user_metadata?.name || '',
+            occupation: session.user.user_metadata?.occupation || '',
+            phone: session.user.user_metadata?.phone || '',
+            location: session.user.user_metadata?.location || '',
+            profileImage: session.user.user_metadata?.profileImage || '',
           };
           setUser(userData);
           await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -57,6 +65,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           id: session.user.id,
           email: session.user.email || '',
           name: session.user.user_metadata?.name || '',
+          occupation: session.user.user_metadata?.occupation || '',
+            phone: session.user.user_metadata?.phone || '',
+            location: session.user.user_metadata?.location || '',
+            profileImage: session.user.user_metadata?.profileImage || '',
         };
         setUser(userData);
         AsyncStorage.setItem('user', JSON.stringify(userData));

@@ -13,6 +13,7 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
         break;
       case 'Profile':
         navigation.navigate('Profile');
+        break;
         case 'About':
         navigation.navigate('About');
         break;

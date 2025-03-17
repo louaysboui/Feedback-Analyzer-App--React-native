@@ -14,6 +14,10 @@ type User = {
   id: string;
   email: string;
   name: string;
+  occupation:string;
+  phone:string;
+  location:string;
+  profileImage?: string;
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
@@ -48,6 +52,10 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
         id: session.user.id,
         email: session.user.email || '',
         name: session.user.user_metadata?.name || '',
+        occupation: session.user.user_metadata?.occupation || '',
+            phone: session.user.user_metadata?.phone || '',
+            location: session.user.user_metadata?.location || '',
+            profileImage: session.user.user_metadata?.profileImage || '',
       };
       setAuth(userData); // This will persist the user in AsyncStorage via AuthContext
       navigate("Tabs");
