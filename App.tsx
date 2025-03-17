@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import Home from './src/screens/HomeScreen/Home';
 import Explore from './src/screens/ExploreScreen/Explore';
 import Dashboard from './src/screens/DashboardScreen/Dashboard';
@@ -9,12 +10,21 @@ import Bottombar from './src/components/Bottombar';
 import Register from './src/screens/RegisterScreen/Register';
 import YoutubeHome from './src/screens/YoutubeHomeScreen/YoutubeHome';
 import Youtube from './src/screens/YoutubeScreen/Youtube';
+import Profile from './src/screens/ProfileScreen/Profile';
+import About from './src/screens/AboutScreen/About';
 import { AuthProvider, useAuth } from './src/components/AuthContext';
 import 'react-native-url-polyfill/auto';
-import { Linking } from 'react-native';
+import { Linking, View, Text } from 'react-native';
 import { supabase } from './lib/supabase';
+import DrawerContent from './src/components/DrawerContent';
+import CustomHeader from './src/components/CustomHeader'; 
+import 'react-native-reanimated';
+
+
 
 export type RootStackParamList = {
+  Profile: undefined;
+  About: undefined;
   Home: undefined;
   Explore: undefined;
   Dashboard: undefined;
@@ -27,14 +37,13 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const DrawerNavigator = createDrawerNavigator<RootStackParamList>();
 
 const AppContent = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, setAuth } = useAuth();
+  const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
 
-  if (isLoading) {
-    return null; // You can add a loading spinner here if desired
-  }
-
+  // Deep link handling remains unchanged
   const handleDeepLink = async (url: string) => {
     if (url.startsWith('myapp://verify')) {
       const urlParams = new URL(url);
@@ -49,7 +58,7 @@ const AppContent = () => {
       }
     }
   };
-  
+
   React.useEffect(() => {
     const subscription = Linking.addEventListener('url', (event) => {
       handleDeepLink(event.url);
@@ -62,17 +71,68 @@ const AppContent = () => {
     return () => subscription.remove();
   }, []);
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
+  if (user) {
+    return (
+      <NavigationContainer ref={navigationRef}>
+        <DrawerNavigator.Navigator
+          drawerContent={(props) => <DrawerContent {...props} />}
+        >
+          <DrawerNavigator.Screen
+            name="Tabs"
+            component={Bottombar}
+            options={{
+              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+            }}
+          />
+          <DrawerNavigator.Screen
+            name="Profile"
+            component={Profile}
+            options={{
+              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+            }}
+          />
+          <DrawerNavigator.Screen
+            name="About"
+            component={About}
+            options={{
+              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+            }}
+          />
+          
+          
+          
+        
+        </DrawerNavigator.Navigator>
+      </NavigationContainer>
+    );
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={user ? 'Tabs' : 'Login'}>
-        <Stack.Screen name="Explore" component={Explore} />
-        <Stack.Screen name="Tabs" component={Bottombar} />
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="Dashboard" component={Dashboard} />
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="Register" component={Register} />
-        <Stack.Screen name="YoutubeHome" component={YoutubeHome} />
-        <Stack.Screen name="Youtube" component={Youtube} />
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator initialRouteName="Explore">
+        <Stack.Screen
+          name="Explore"
+          component={Explore}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Login"
+          component={Login}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={Register}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -11,6 +11,7 @@ module.exports = function (api) {
           allowlist: ['SUPABASE_URL', 'SUPABASE_ANON_KEY'],
         },
       ],
+      'react-native-reanimated/plugin',
     ],
   };
 };
