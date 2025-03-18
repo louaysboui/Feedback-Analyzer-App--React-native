@@ -106,6 +106,11 @@ const AppContent = () => {
               header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
             }}
           />
+          <DrawerNavigator.Screen
+          name="Youtube"
+          component={Youtube}
+          options={{ headerShown: false }}
+          />
           
           
           
@@ -118,21 +123,14 @@ const AppContent = () => {
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator initialRouteName="Explore">
-        <Stack.Screen
-          name="Explore"
-          component={Explore}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Login"
-          component={Login}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Register"
-          component={Register}
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="Explore" component={Explore} options={{ headerShown: false }}/>
+        <Stack.Screen name="Login" component={Login} options={{ headerShown: false }}/>
+        <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
+          <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
+          <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
+          
+          
+        
       </Stack.Navigator>
     </NavigationContainer>
   );

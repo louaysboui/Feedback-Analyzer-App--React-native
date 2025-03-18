@@ -1,64 +1,97 @@
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { ImageLibraryOptions, launchImageLibrary } from 'react-native-image-picker';
 import { useAuth } from '../../components/AuthContext';
 import styles from './ProfileStyles';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
 
-
-
-
+interface User {
+  id: string;
+  email: string;
+  name?: string;
+  occupation?: string;
+  phone?: string;
+  location?: string;
+  profileImage?: string;
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
-
 const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
-  const { user } = useAuth();
+  const { user, setUserData } = useAuth();
 
-  // State for editable fields, initialized with user data or empty strings
   const [name, setName] = useState(user?.name || '');
   const [occupation, setOccupation] = useState(user?.occupation || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [location, setLocation] = useState(user?.location || '');
-  const [profileImage, setProfileImage] = useState(user?.profileImage || null);
+  const [profileImage, setProfileImage] = useState<string | undefined>(user?.profileImage ?? undefined);
 
-  // Function to select a profile image from the device
+  const displayName = user?.name || 'Your Name';
+  const displayLocation = location || 'Your Location';
+  const displayEmail = user?.email || 'Email Address';
+
   const selectImage = () => {
-    launchImageLibrary({ mediaType: 'photo' }, (response) => {
+    const options: ImageLibraryOptions = {
+      mediaType: 'photo',
+      quality: 1 as const,
+      maxWidth: 300,
+      maxHeight: 300,
+    };
+
+    launchImageLibrary(options, (response) => {
       if (response.didCancel) {
-        console.log('User cancelled image picker');
+        console.log('User cancelled image selection');
       } else if (response.errorCode) {
         console.log('ImagePicker Error: ', response.errorMessage);
+        Alert.alert('Error', 'Failed to select an image. Please try again.');
       } else if (response.assets && response.assets.length > 0) {
         const source = response.assets[0].uri;
         if (source) {
           setProfileImage(source);
+          Alert.alert('Success', 'Profile image updated locally.');
+        } else {
+          Alert.alert('Error', 'No image selected.');
         }
-        // TODO: Upload the image to your server
+      } else {
+        Alert.alert('Error', 'Unexpected error occurred. Please try again.');
       }
     });
   };
 
-  // Function to save profile changes
-  const saveProfile = () => {
-    // TODO: Implement actual saving logic (e.g., update auth context or send to server)
-    console.log('Saving profile:', { name, occupation, phone, location, profileImage });
-    Alert.alert('Success', 'Profile saved successfully');
+  const saveProfile = async () => {
+    if (!user || !user.id || !user.email) {
+      Alert.alert('Error', 'Cannot save profile: User ID or email is missing.');
+      return;
+    }
+
+    const updatedUserData: Partial<User> = {
+      name,
+      occupation,
+      phone,
+      location,
+      profileImage,
+    };
+
+    try {
+      await setUserData(updatedUserData);
+      Alert.alert('Success', 'Save complete!');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to save profile. Please try again.');
+    }
   };
 
-  // Function to cancel and return to the home screen
   const cancelEdit = () => {
-    navigate('Tabs'); // Assumes 'Tabs' is the home screen route
+    navigate('Tabs');
   };
 
   return (
     <View style={styles.container}>
-      {/* Profile Image Section */}
       <View style={styles.imageContainer}>
         {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.image} />
+          <Image source={{ uri: profileImage }} style={styles.image} key={profileImage} />
         ) : (
           <Icon name="person-circle-outline" size={100} color="#ccc" />
         )}
@@ -66,10 +99,12 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
           <Icon name="camera" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
-
-      {/* User Details Section with Labels and Editable Fields */}
-      <View style={styles.detailsContainer}>
-        {/* Name Field */}
+      <View style={styles.viewDetailsContainer}>
+        <Text style={styles.nameText}>{displayName}</Text>
+        <Text style={styles.infoText}><Icon name="location-outline" size={16} /> Location: {displayLocation}</Text>
+        <Text style={styles.infoText}>Email: {displayEmail}</Text>
+      </View>
+      <View style={styles.editDetailsContainer}>
         <View style={styles.inputRow}>
           <Text style={styles.label}>Name</Text>
           <TextInput
@@ -79,8 +114,6 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
             placeholder="Enter your name"
           />
         </View>
-
-        {/* Occupation Field */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>Occupation</Text>
           <TextInput
@@ -90,8 +123,6 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
             placeholder="Enter your occupation"
           />
         </View>
-
-        {/* Phone Number Field */}
         <View style={styles.inputRow}>
           <Text style={styles.label}>Phone Number</Text>
           <TextInput
@@ -102,10 +133,8 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
             keyboardType="phone-pad"
           />
         </View>
-
-        {/* Location Field */}
         <View style={styles.inputRow}>
-          <Text style={styles.label}>Location</Text>
+          <Text style={styles.label}> Location</Text>
           <TextInput
             style={styles.input}
             value={location}
@@ -114,8 +143,6 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
           />
         </View>
       </View>
-
-      {/* Save and Cancel Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
           <Text style={styles.buttonText}>Save</Text>

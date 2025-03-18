@@ -5,16 +5,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     alignItems: 'center',
-    paddingTop: 50,
+    paddingTop: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    width: '100%',
+    backgroundColor: '#f8f8f8',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
   },
   imageContainer: {
-    position: 'relative',
     marginBottom: 20,
+    position: 'relative',
+    alignItems: 'center',
   },
   image: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: '#ff9800',
   },
   editIcon: {
     position: 'absolute',
@@ -24,9 +44,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 4,
   },
-  detailsContainer: {
+  viewDetailsContainer: {
+    width: '80%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  editDetailsContainer: {
     width: '80%',
     marginBottom: 20,
+  },
+  nameText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  infoText: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 5,
+    textAlign: 'center',
   },
   inputRow: {
     marginBottom: 15,
@@ -48,13 +86,13 @@ const styles = StyleSheet.create({
     width: '80%',
   },
   saveButton: {
-    backgroundColor: '#28a745', // Green for Save
+    backgroundColor: '#28a745',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
   },
   cancelButton: {
-    backgroundColor: '#dc3545', // Red for Cancel
+    backgroundColor: '#dc3545',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,

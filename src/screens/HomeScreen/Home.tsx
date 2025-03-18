@@ -25,19 +25,6 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   const [text, setText] = useState('');
   const [sentiment, setSentiment] = useState('');
 
-  // Fetch user data and show welcome alert
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (user) {
-        const data = await getUserData(user.id);
-        setUserData(data);
-        if (data?.name) {
-          Alert.alert('Welcome', `Welcome, ${data.name}!`);
-        }
-      }
-    };
-    fetchUserData();
-  }, [user]);
 
   // Simple mock sentiment analysis
   const analyzeSentiment = () => {
@@ -51,7 +38,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
       {/* Notification / Welcome Section */}
       <View style={styles.welcomeContainer}>
         <Text style={styles.welcomeText}>
-          Welcome, {userData?.name || 'User'}!
+          Welcome, {user?.name || 'User'}!
         </Text>
       </View>
 

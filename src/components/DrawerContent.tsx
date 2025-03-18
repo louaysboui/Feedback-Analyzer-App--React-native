@@ -4,8 +4,11 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import Colors from '../constants/Colors';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
+import { useAuth } from '../components/AuthContext'; // Adjust path as needed
 
 const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
+  const { user } = useAuth(); // Access user from auth context
+
   const onSelect = (item: string) => {
     switch (item) {
       case 'Home':
@@ -14,12 +17,10 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
       case 'Profile':
         navigation.navigate('Profile');
         break;
-        case 'About':
+      case 'About':
         navigation.navigate('About');
         break;
       case 'Logout':
-        // Assuming setAuth is accessible via context or passed as a prop
-        // For simplicity, we'll just close the drawer here; adjust as needed
         navigation.closeDrawer();
         break;
     }
@@ -30,13 +31,21 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
     <View style={{ flex: 1, padding: 16, backgroundColor: Colors.primary }}>
       {/* Profile Section */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
-        <Image
-          source={require('../assets/images/louay.jpg')}
-          style={{ width: 75, height: 75, borderRadius: 35 }}
-        />
+        {user?.profileImage ? (
+          <Image
+            source={{ uri: user.profileImage }}
+            style={{ width: 75, height: 75, borderRadius: 35 }}
+          />
+        ) : (
+          <Icon name="person-circle-outline" size={75} color="#ccc" />
+        )}
         <View style={{ marginLeft: 16 }}>
-          <Text style={{ color: 'white', fontFamily: 'Poppins-Bold', fontSize: 18 }}>Louay Sboui</Text>
-          <Text style={{ color: 'gray', fontFamily: 'Poppins-Regular', fontSize: 14 }}>Full stack Mobile developer</Text>
+          <Text style={{ color: 'white', fontFamily: 'Poppins-Bold', fontSize: 18 }}>
+            {user?.name || 'Your Name'}
+          </Text>
+          <Text style={{ color: 'gray', fontFamily: 'Poppins-Regular', fontSize: 14 }}>
+            {user?.occupation || 'Your Occupation'}
+          </Text>
         </View>
       </View>
 
@@ -54,7 +63,9 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Icon name={item.icon} size={24} color="white" />
-              <Text style={{ color: 'white', fontFamily: 'Poppins-Regular', fontSize: 16, marginLeft: 16 }}>{item.label}</Text>
+              <Text style={{ color: 'white', fontFamily: 'Poppins-Regular', fontSize: 16, marginLeft: 16 }}>
+                {item.label}
+              </Text>
             </View>
           </TouchableOpacity>
         ))}
