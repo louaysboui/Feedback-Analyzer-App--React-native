@@ -22,7 +22,16 @@ const FeedbacksScreen = () => {
   }, []);
 
   const fetchFeedbacks = async () => {
-    const { data, error } = await supabase.from('feedbacks').select('*');
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('Error getting user:', userError);
+      return;
+    }
+    const userId = user.id;
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .select('*')
+      .eq('user_id', userId);
     if (error) {
       console.error('Error fetching feedbacks:', error);
     } else {
@@ -43,17 +52,23 @@ const FeedbacksScreen = () => {
       Alert.alert('Error', 'Feedback cannot be empty');
       return;
     }
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error('Error getting user:', userError);
+      return;
+    }
+    const userId = user.id;
     const { error } = await supabase
       .from('feedbacks')
-      .insert([{ content: newFeedback, sentiment: newSentiment }]);
-
+      .insert([{ content: newFeedback, sentiment: newSentiment, user_id: userId }]);
+  
     if (error) {
       console.error('Error adding feedback:', error);
     } else {
       fetchFeedbacks();
       setIsAddModalVisible(false);
       setNewFeedback('');
-      setNewSentiment('positive'); // Reset to default
+      setNewSentiment('positive');
     }
   };
 

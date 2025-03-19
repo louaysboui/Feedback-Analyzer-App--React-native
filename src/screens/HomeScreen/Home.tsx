@@ -46,7 +46,7 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
       <Text style={styles.title}>Feedback Analyzer</Text>
       <TextInput
         style={styles.input}
-        placeholder="Entrez votre texte ici"
+        placeholder="Enter your feedback here..."
         value={text}
         onChangeText={setText}
         multiline

@@ -149,7 +149,7 @@ const RegisterScreen: React.FC <Props>= ({navigation:{navigate}}) => {
               marginBottom: Spacing,
             }}
           >
-            Create an account so you can analyze your feedback
+            Create an account so you can analyze your feedbacks
           </Text>
         </View>
 

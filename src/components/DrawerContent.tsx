@@ -8,6 +8,7 @@ import { useAuth } from '../components/AuthContext'; // Adjust path as needed
 
 const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
   const { user } = useAuth(); // Access user from auth context
+  const { signOut } = useAuth(); // Access signOut function from auth context
 
   const onSelect = (item: string) => {
     switch (item) {
@@ -26,6 +27,13 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
     }
     navigation.closeDrawer();
   };
+
+
+  
+    const handleLogout = async () => {
+      await signOut();
+      navigation.navigate('Login');
+    };
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: Colors.primary }}>
@@ -80,7 +88,7 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
             justifyContent: 'center',
             padding: 12,
           }}
-          onPress={() => onSelect('Logout')}
+          onPress={handleLogout}
         >
           <MaterialCommunityIcons name="logout" size={24} color="white" style={{ marginRight: 8 }} />
           <Text style={{ color: 'white', fontFamily: 'Poppins-Regular', fontSize: 16 }}>Logout</Text>
