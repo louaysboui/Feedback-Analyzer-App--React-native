@@ -5,8 +5,12 @@ const blue = "#1F41BB";
 const gray = "#ECECEC";
 const lightBlue = "#f1f4ff";
 const darkgray = "#a9a9a9";
+const  green = "#4CD964";
+const red="#FF3B30";
 
 export default {
+  lightred: red,
+  lightgreen: green,
   darkText: dark,
   text: black,
   background: white,

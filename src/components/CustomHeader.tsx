@@ -19,7 +19,7 @@ const CustomHeader: React.FC<CustomHeaderProps> = ({ navigation, route, options,
         <TouchableOpacity style={{ marginRight: 16 }} onPress={() => navigation.navigate('Tabs')}>
           <Icon name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
-        <Text style={{ flex: 1, textAlign: 'center', color: '#000', fontFamily: 'Poppins-Bold', fontSize: 18 }}>Profile </Text>
+        <Text style={{ flex: 1, textAlign: 'center', color: '#000', fontFamily: 'Poppins-Bold', fontSize: 18 }}>Profile Information </Text>
       </View>
     );
   } else {

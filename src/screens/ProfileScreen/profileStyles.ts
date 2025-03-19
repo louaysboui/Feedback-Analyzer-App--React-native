@@ -102,6 +102,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ccc',
+  },
+  countryPicker: {
+    width: 199, // Adjust width as needed
+    height: 52,
+  },
+  phoneInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 5,
+    paddingLeft: 10,
+  },
 });
 
 export default styles;

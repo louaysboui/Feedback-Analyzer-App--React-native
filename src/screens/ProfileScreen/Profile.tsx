@@ -6,6 +6,7 @@ import { useAuth } from '../../components/AuthContext';
 import styles from './ProfileStyles';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
+import { Picker } from '@react-native-picker/picker'; // Correct import
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
   const [phone, setPhone] = useState(user?.phone || '');
   const [location, setLocation] = useState(user?.location || '');
   const [profileImage, setProfileImage] = useState<string | undefined>(user?.profileImage ?? undefined);
+  const [countryCode, setCountryCode] = useState('+216'); // Added state for country code
 
   const displayName = user?.name || 'Your Name';
   const displayLocation = location || 'Your Location';
@@ -69,7 +71,7 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
     const updatedUserData: Partial<User> = {
       name,
       occupation,
-      phone,
+      phone: `${countryCode}${phone}`, // Combine country code and phone number
       location,
       profileImage,
     };
@@ -87,6 +89,14 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
     navigate('Tabs');
   };
 
+  const countryCodes = [
+    { label: '🇹🇳 Tunisia (+216)', value: '+216' },
+    { label: '🇺🇸 United States (+1)', value: '+1' },
+    { label: '🇬🇧 United Kingdom (+44)', value: '+44' },
+    { label: '🇫🇷 France (+33)', value: '+33' },
+  ];
+  
+
   return (
     <View style={styles.container}>
       <View style={styles.imageContainer}>
@@ -101,7 +111,9 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
       </View>
       <View style={styles.viewDetailsContainer}>
         <Text style={styles.nameText}>{displayName}</Text>
-        <Text style={styles.infoText}><Icon name="location-outline" size={16} /> Location: {displayLocation}</Text>
+        <Text style={styles.infoText}>
+          <Icon name="location-outline" size={16} /> Location: {displayLocation}
+        </Text>
         <Text style={styles.infoText}>Email: {displayEmail}</Text>
       </View>
       <View style={styles.editDetailsContainer}>
@@ -125,16 +137,32 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
         </View>
         <View style={styles.inputRow}>
           <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Enter your phone number"
-            keyboardType="phone-pad"
-          />
+          <View style={styles.phoneInputContainer}>
+          <Picker
+  selectedValue={countryCode}
+  style={styles.countryPicker}
+  itemStyle={{ color: '#000' }}
+  onValueChange={(value) => setCountryCode(value)}
+>
+  {countryCodes.map((country) => (
+    <Picker.Item
+      key={country.value}
+      label={country.label}
+      value={country.value}
+    />
+  ))}
+</Picker>
+            <TextInput
+              style={styles.phoneInput}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
+            />
+          </View>
         </View>
         <View style={styles.inputRow}>
-          <Text style={styles.label}> Location</Text>
+          <Text style={styles.label}>Location</Text>
           <TextInput
             style={styles.input}
             value={location}

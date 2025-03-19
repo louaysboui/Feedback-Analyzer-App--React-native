@@ -111,6 +111,11 @@ const AppContent = () => {
           component={Youtube}
           options={{ headerShown: false }}
           />
+           <DrawerNavigator.Screen
+          name="Login"
+          component={Login}
+          options={{ headerShown: false }}
+          />
           
           
           
