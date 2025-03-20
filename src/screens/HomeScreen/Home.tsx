@@ -5,14 +5,13 @@ import {
   SafeAreaView,
   Alert,
   TextInput,
-  Button,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-
 import { useAuth } from '../../components/AuthContext';
 import { getUserData } from '../../service/userService';
 import { RootStackParamList } from '../../../App';
-import {styles} from './HomeStyles.ts';
+import { styles } from './HomeStyles.ts';
+import CustomButton from '../../components/CustomButton'; // Import the new button component
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -24,7 +23,6 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
   // 2) Sentiment analysis states
   const [text, setText] = useState('');
   const [sentiment, setSentiment] = useState('');
-
 
   // Simple mock sentiment analysis
   const analyzeSentiment = () => {
@@ -51,7 +49,9 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
         onChangeText={setText}
         multiline
       />
-      <Button title="Analyser" onPress={analyzeSentiment} />
+
+      {/* Custom Button */}
+      <CustomButton title="Analyze" onPress={analyzeSentiment} />
 
       {sentiment ? (
         <Text style={styles.result}>
@@ -71,4 +71,3 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
 };
 
 export default HomeScreen;
-
