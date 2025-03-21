@@ -12,8 +12,8 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
 
   const onSelect = (item: string) => {
     switch (item) {
-      case 'Home':
-        navigation.navigate('Tabs');
+      case 'Settings':
+        navigation.navigate('Settings');
         break;
       case 'Profile':
         navigation.navigate('Profile');
@@ -23,6 +23,9 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
         break;
       case 'Logout':
         navigation.closeDrawer();
+        break;
+        case 'Reclamation':
+        navigation.navigate('Reclamation');
         break;
     }
     navigation.closeDrawer();
@@ -62,6 +65,7 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
         {[
           { label: 'Profile', icon: 'person', key: 'Profile' },
           { label: 'Settings', icon: 'settings', key: 'Settings' },
+          { label: 'Reclamation', icon: 'construct', key: 'Reclamation' },
           { label: 'About', icon: 'information-circle', key: 'About' },
         ].map((item) => (
           <TouchableOpacity

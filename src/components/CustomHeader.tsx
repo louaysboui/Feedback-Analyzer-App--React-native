@@ -13,13 +13,13 @@ interface CustomHeaderProps {
 const CustomHeader: React.FC<CustomHeaderProps> = ({ navigation, route, options, back, onMenuPress }) => {
   const showMenu = ['Tabs', 'Home', 'Dashboard', 'YoutubeHome', 'Youtube'].includes(route.name);
 
-  if (route.name === 'Profile') {
+  if (route.name === 'Profile' || route.name === 'About' || route.name === 'Settings' || route.name === 'Reclamation') {
     return (
       <View style={{ height: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity style={{ marginRight: 16 }} onPress={() => navigation.navigate('Tabs')}>
           <Icon name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
-        <Text style={{ flex: 1, textAlign: 'center', color: '#000', fontFamily: 'Poppins-Bold', fontSize: 18 }}>Profile Information </Text>
+        <Text style={{ flex: 1, textAlign: 'center', color: '#000', fontFamily: 'Poppins-Bold', fontSize: 18 }}></Text>
       </View>
     );
   } else {

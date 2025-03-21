@@ -19,11 +19,15 @@ import { supabase } from './lib/supabase';
 import DrawerContent from './src/components/DrawerContent';
 import CustomHeader from './src/components/CustomHeader'; 
 import 'react-native-reanimated';
+import Settings from './src/screens/SettingsScreen/Settings';
+import Reclamation from './src/screens/ReclamationScreen/Reclamation';
 
 
 
 export type RootStackParamList = {
   Profile: undefined;
+  Settings: undefined;
+  Reclamation: undefined;
   About: undefined;
   Home: undefined;
   Explore: undefined;
@@ -116,6 +120,21 @@ const AppContent = () => {
           component={Login}
           options={{ headerShown: false }}
           />
+          <DrawerNavigator.Screen
+          name="Settings"
+          component={Settings}
+          options={{
+            header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+          }}
+          />
+          <DrawerNavigator.Screen
+          name="Reclamation"
+          component={Reclamation}
+          options={{
+            header: (props) => <CustomHeader {...props} back={undefined}  onMenuPress={() => props.navigation.toggleDrawer()} />,
+          }}
+          />
+          
           
           
           
