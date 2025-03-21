@@ -12,6 +12,14 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
+  description: {
+    fontSize: 16,
+    color: '#555',
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  
   welcomeText: {
     fontSize: 24,
     fontWeight: 'bold',

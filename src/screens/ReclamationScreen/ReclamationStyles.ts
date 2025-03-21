@@ -1,4 +1,6 @@
 import { StyleSheet } from 'react-native';
+import Colors from '../../constants/Colors';
+
 
 const ReclamationStyles = StyleSheet.create({
   container: {
@@ -7,13 +9,14 @@ const ReclamationStyles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   header: {
+    color:Colors.primary,
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 18,
     marginBottom: 5,
   },
   dropdownContainer: {
@@ -27,6 +30,7 @@ const ReclamationStyles = StyleSheet.create({
     width: '100%',
   },
   textArea: {
+    fontSize:15,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 5,
@@ -45,10 +49,11 @@ const ReclamationStyles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ccc',
+    marginBottom: 25,
   },
   selectedRadioButton: {
     borderColor: '#007AFF',
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.lightred,
   },
   selectedLabel: {
     color: '#fff',
@@ -58,11 +63,13 @@ const ReclamationStyles = StyleSheet.create({
     padding: 15,
     borderRadius: 5,
     alignItems: 'center',
+    
   },
   submitText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+    
   },
 });
 

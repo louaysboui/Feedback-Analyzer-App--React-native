@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { supabase } from "../../../lib/supabase"; // Adjust the path as necessary
 import ReclamationStyles from './ReclamationStyles';
 
 const Reclamation = () => {
@@ -8,11 +9,49 @@ const Reclamation = () => {
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('');
 
-  const handleSubmit = () => {
-    console.log('Issue Type:', issueType);
-    console.log('Description:', description);
-    console.log('Severity:', severity);
-    // Here you would typically send the data to Supabase
+  const handleSubmit = async () => {
+    // Validate that all fields are filled
+    if (!issueType || !description || !severity) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    try {
+      // Check if the user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        Alert.alert('Error', 'You must be logged in to submit a reclamation');
+        return;
+      }
+
+      // Insert the reclamation data into the Supabase table
+      const { data, error } = await supabase
+        .from('reclamations') // Ensure this matches your Supabase table name
+        .insert([
+          {
+            user_id: user.id, // Associate the reclamation with the authenticated user
+            issue_type: issueType,
+            description: description,
+            severity: severity,
+          },
+        ]);
+
+      if (error) throw error;
+
+      // Show success message and clear the form
+      Alert.alert('Success', 'Reclamation submitted successfully');
+      setIssueType('');
+      setDescription('');
+      setSeverity('');
+    } catch (error) {
+      // Handle errors and provide feedback
+      if (error instanceof Error) {
+        console.error('Error submitting reclamation:', error.message);
+      } else {
+        console.error('Error submitting reclamation:', error);
+      }
+      Alert.alert('Error', 'Failed to submit reclamation. Please try again.');
+    }
   };
 
   return (
@@ -30,7 +69,6 @@ const Reclamation = () => {
           <Picker.Item label="Bug" value="bug" />
           <Picker.Item label="Performance" value="performance" />
           <Picker.Item label="UI/UX" value="uiux" />
-          <Picker.Item label="Feature Request" value="feature" />
           <Picker.Item label="Other" value="other" />
         </Picker>
       </View>

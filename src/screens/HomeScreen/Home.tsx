@@ -42,6 +42,10 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
 
       {/* Sentiment Analyzer UI */}
       <Text style={styles.title}>Feedback Analyzer</Text>
+      {/* Creative description for modern UI */}
+      <Text style={styles.description}>
+        Unleash the power of insight! Our analyzer transforms your feedback into clear, actionable sentiment—making every opinion count.
+      </Text>
       <TextInput
         style={styles.input}
         placeholder="Enter your feedback here..."
