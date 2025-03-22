@@ -15,6 +15,9 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
       case 'Settings':
         navigation.navigate('Settings');
         break;
+        case 'FavoriteFeedbacks':
+        navigation.navigate('FavoriteFeedbacks');
+        break;
       case 'Profile':
         navigation.navigate('Profile');
         break;
@@ -64,6 +67,7 @@ const DrawerContent = ({ navigation }: DrawerContentComponentProps) => {
       <View>
         {[
           { label: 'Profile', icon: 'person', key: 'Profile' },
+          { label: 'Favorite Feedbacks', icon: 'heart', key: 'FavoriteFeedbacks' },
           { label: 'Settings', icon: 'settings', key: 'Settings' },
           { label: 'Reclamation', icon: 'construct', key: 'Reclamation' },
           { label: 'About', icon: 'information-circle', key: 'About' },

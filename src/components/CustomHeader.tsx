@@ -13,7 +13,7 @@ interface CustomHeaderProps {
 const CustomHeader: React.FC<CustomHeaderProps> = ({ navigation, route, options, back, onMenuPress }) => {
   const showMenu = ['Tabs', 'Home', 'Dashboard', 'YoutubeHome', 'Youtube'].includes(route.name);
 
-  if (route.name === 'Profile' || route.name === 'About' || route.name === 'Settings' || route.name === 'Reclamation') {
+  if (route.name === 'Profile' || route.name === 'About' || route.name === 'Settings' || route.name === 'Reclamation' || route.name === 'FavoriteFeedbacks') {
     return (
       <View style={{ height: 50, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity style={{ marginRight: 16 }} onPress={() => navigation.navigate('Tabs')}>

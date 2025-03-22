@@ -19,9 +19,16 @@ interface Feedback {
   id: number;
   content: string;
   sentiment: string;
+  is_favorite: boolean;
 }
 
-const FeedbacksScreen = () => {
+import { NavigationProp } from '@react-navigation/native';
+
+interface FeedbacksScreenProps {
+  navigation: NavigationProp<any>;
+}
+
+const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -29,7 +36,6 @@ const FeedbacksScreen = () => {
   const [newFeedback, setNewFeedback] = useState('');
   const [newSentiment, setNewSentiment] = useState('positive');
   const [editingFeedback, setEditingFeedback] = useState<Feedback | null>(null);
-  // New state to track selected feedbacks for multi deletion
   const [selectedFeedbackIds, setSelectedFeedbackIds] = useState<number[]>([]);
 
   useEffect(() => {
@@ -54,7 +60,20 @@ const FeedbacksScreen = () => {
     }
   };
 
-  // Update the filter to search by both content and sentiment.
+  const toggleFavorite = async (id: number, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase
+      .from('feedbacks')
+      .update({ is_favorite: newStatus })
+      .eq('id', id);
+    if (error) {
+      console.error('Error toggling favorite:', error);
+      Alert.alert('Error', 'Failed to update favorite status');
+    } else {
+      setFeedbacks(feedbacks.map(f => f.id === id ? { ...f, is_favorite: newStatus } : f));
+    }
+  };
+
   const filteredFeedbacks = feedbacks.filter((feedback) => {
     const lowerSearch = searchTerm.toLowerCase();
     return (
@@ -80,8 +99,7 @@ const FeedbacksScreen = () => {
     const userId = user.id;
     const { error } = await supabase
       .from('feedbacks')
-      .insert([{ content: newFeedback, sentiment: newSentiment, user_id: userId }]);
-  
+      .insert([{ content: newFeedback, sentiment: newSentiment, user_id: userId, is_favorite: false }]);
     if (error) {
       console.error('Error adding feedback:', error);
     } else {
@@ -111,7 +129,6 @@ const FeedbacksScreen = () => {
           sentiment: editingFeedback.sentiment,
         })
         .eq('id', editingFeedback.id);
-
       if (error) {
         console.error('Error updating feedback:', error);
       } else {
@@ -124,7 +141,6 @@ const FeedbacksScreen = () => {
     }
   };
 
-  // Single deletion remains the same
   const handleDelete = (id: number) => {
     Alert.alert('Confirm Delete', 'Are you sure you want to delete this feedback?', [
       { text: 'Cancel', style: 'cancel' },
@@ -142,7 +158,6 @@ const FeedbacksScreen = () => {
     ]);
   };
 
-  // Toggle selection for multi-delete mode
   const toggleSelection = (id: number) => {
     if (selectedFeedbackIds.includes(id)) {
       setSelectedFeedbackIds(selectedFeedbackIds.filter(item => item !== id));
@@ -176,7 +191,6 @@ const FeedbacksScreen = () => {
     );
   };
 
-  // Cancel multi-selection mode
   const cancelSelection = () => {
     setSelectedFeedbackIds([]);
   };
@@ -188,17 +202,15 @@ const FeedbacksScreen = () => {
         activeOpacity={0.8}
         onLongPress={() => toggleSelection(item.id)}
         onPress={() => {
-          // If selection mode is active, toggle selection
           if (selectedFeedbackIds.length > 0) {
             toggleSelection(item.id);
           } else {
-            // Otherwise, proceed to edit (or any default action)
             handleEdit(item.id);
           }
         }}
         style={[
           styles.feedbackItem,
-          isSelected && { backgroundColor: '#d0ebff' } // highlight selected item
+          isSelected && { backgroundColor: '#d0ebff' }
         ]}
       >
         <View style={styles.feedbackRow}>
@@ -213,9 +225,11 @@ const FeedbacksScreen = () => {
           </Text>
         </View>
         <View style={styles.actions}>
-          {/* Show edit/trash buttons only when not in selection mode */}
           {selectedFeedbackIds.length === 0 && (
             <>
+              <TouchableOpacity onPress={() => toggleFavorite(item.id, item.is_favorite)}>
+                <Icon name={item.is_favorite ? "star" : "star-outline"} size={20} color={item.is_favorite ? "#FFD700" : "#aaa"} style={styles.actionIcon} />
+              </TouchableOpacity>
               <TouchableOpacity onPress={() => handleEdit(item.id)}>
                 <Icon name="pencil" size={20} color={Colors.primary} style={styles.actionIcon} />
               </TouchableOpacity>
@@ -231,7 +245,6 @@ const FeedbacksScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* If items are selected, show a selection header */}
       {selectedFeedbackIds.length > 0 && (
         <View style={localStyles.selectionHeader}>
           <Text style={localStyles.selectionText}>
@@ -245,11 +258,7 @@ const FeedbacksScreen = () => {
           </TouchableOpacity>
         </View>
       )}
-
-      {/* Header */}
       <Text style={styles.header}>Feedbacks</Text>
-
-      {/* Search Bar */}
       <View style={styles.searchBar}>
         <Icon name="search" size={20} color="#aaa" style={styles.searchIcon} />
         <TextInput
@@ -259,8 +268,6 @@ const FeedbacksScreen = () => {
           style={styles.searchInput}
         />
       </View>
-
-      {/* Feedback List */}
       <FlatList
         data={filteredFeedbacks}
         renderItem={renderFeedbackItem}
@@ -271,13 +278,9 @@ const FeedbacksScreen = () => {
           </View>
         )}
       />
-
-      {/* Floating Action Button */}
       <TouchableOpacity style={styles.fab} onPress={handleAddFeedback}>
         <Icon name="add" size={24} color="#fff" />
       </TouchableOpacity>
-
-      {/* Add Feedback Modal */}
       <Modal visible={isAddModalVisible} animationType="fade" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -288,7 +291,6 @@ const FeedbacksScreen = () => {
               value={newFeedback}
               onChangeText={setNewFeedback}
             />
-            {/* Dropdown for sentiment */}
             <Picker
               selectedValue={newSentiment}
               style={{ height: 100, width: '100%' }}
@@ -309,8 +311,6 @@ const FeedbacksScreen = () => {
           </View>
         </View>
       </Modal>
-
-      {/* Edit Feedback Modal */}
       <Modal visible={isEditModalVisible} animationType="fade" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -354,9 +354,6 @@ const FeedbacksScreen = () => {
   );
 };
 
-export default FeedbacksScreen;
-
-// Local styles for selection header controls
 const localStyles = StyleSheet.create({
   selectionHeader: {
     flexDirection: 'row',
@@ -383,4 +380,17 @@ const localStyles = StyleSheet.create({
     padding: 8,
     borderRadius: 5,
   },
+  favoriteButton: {
+    backgroundColor: Colors.primary,
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  favoriteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+  },
 });
+
+export default FeedbacksScreen;

@@ -49,4 +49,7 @@ export const styles = StyleSheet.create({
     sentimentText: {
       fontWeight: 'bold',
     }
+    
   });
+  
+  

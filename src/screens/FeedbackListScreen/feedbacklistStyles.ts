@@ -7,6 +7,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8F8F8',
     padding: 10,
   },
+  unfavoriteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
   header: {
     fontSize: 24,
     fontWeight: 'bold',

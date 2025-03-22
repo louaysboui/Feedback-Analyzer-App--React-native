@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import Home from './src/screens/HomeScreen/Home';
@@ -21,8 +21,8 @@ import CustomHeader from './src/components/CustomHeader';
 import 'react-native-reanimated';
 import Settings from './src/screens/SettingsScreen/Settings';
 import Reclamation from './src/screens/ReclamationScreen/Reclamation';
-
-
+import FavoriteFeedbacks from './src/screens/FavoriteFeedbacksScreen/FavoriteFeedbacks';
+import { ThemeProvider, useTheme } from './src/components/ThemeContext';
 
 export type RootStackParamList = {
   Profile: undefined;
@@ -38,14 +38,17 @@ export type RootStackParamList = {
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
   Youtube: { channelUrl: string };
+  FavoriteFeedbacks: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const DrawerNavigator = createDrawerNavigator<RootStackParamList>();
 
 const AppContent = () => {
-  const { user, isLoading, setAuth } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { theme } = useTheme();
   const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
+  const navTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
 
   // Deep link handling remains unchanged
   const handleDeepLink = async (url: string) => {
@@ -85,7 +88,7 @@ const AppContent = () => {
 
   if (user) {
     return (
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer ref={navigationRef} theme={navTheme}>
         <DrawerNavigator.Navigator
           drawerContent={(props) => <DrawerContent {...props} />}
         >
@@ -93,68 +96,81 @@ const AppContent = () => {
             name="Tabs"
             component={Bottombar}
             options={{
-              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
             }}
           />
           <DrawerNavigator.Screen
             name="Profile"
             component={Profile}
             options={{
-              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
             }}
           />
           <DrawerNavigator.Screen
             name="About"
             component={About}
             options={{
-              header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
             }}
           />
           <DrawerNavigator.Screen
-          name="Youtube"
-          component={Youtube}
-          options={{ headerShown: false }}
-          />
-           <DrawerNavigator.Screen
-          name="Login"
-          component={Login}
-          options={{ headerShown: false }}
+            name="Youtube"
+            component={Youtube}
+            options={{ headerShown: false }}
           />
           <DrawerNavigator.Screen
-          name="Settings"
-          component={Settings}
-          options={{
-            header: (props) => <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />,
-          }}
+            name="Login"
+            component={Login}
+            options={{ headerShown: false }}
           />
           <DrawerNavigator.Screen
-          name="Reclamation"
-          component={Reclamation}
-          options={{
-            header: (props) => <CustomHeader {...props} back={undefined}  onMenuPress={() => props.navigation.toggleDrawer()} />,
-          }}
+            name="Settings"
+            component={Settings}
+            options={{
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
+            }}
           />
-          
-          
-          
-          
-        
+          <DrawerNavigator.Screen
+            name="Reclamation"
+            component={Reclamation}
+            options={{
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
+            }}
+          />
+          <DrawerNavigator.Screen
+            name="FavoriteFeedbacks"
+            component={FavoriteFeedbacks}
+            options={{
+              header: (props) => (
+                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+              ),
+            }}
+          />
+
+
         </DrawerNavigator.Navigator>
       </NavigationContainer>
     );
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator initialRouteName="Explore">
-        <Stack.Screen name="Explore" component={Explore} options={{ headerShown: false }}/>
-        <Stack.Screen name="Login" component={Login} options={{ headerShown: false }}/>
+        <Stack.Screen name="Explore" component={Explore} options={{ headerShown: false }} />
+        <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
         <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
-          <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
-          <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
-          
-          
-        
+        <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
+        <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -163,7 +179,9 @@ const AppContent = () => {
 const App = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </AuthProvider>
   );
 };

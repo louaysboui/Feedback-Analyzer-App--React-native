@@ -12,13 +12,17 @@ import { getUserData } from '../../service/userService';
 import { RootStackParamList } from '../../../App';
 import { styles } from './HomeStyles.ts';
 import CustomButton from '../../components/CustomButton'; // Import the new button component
+import { useTheme } from '../../components/ThemeContext.tsx';
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
+
+  
   // 1) Auth and user data
   const { user } = useAuth();
   const [userData, setUserData] = useState<any>(null);
+
 
   // 2) Sentiment analysis states
   const [text, setText] = useState('');
