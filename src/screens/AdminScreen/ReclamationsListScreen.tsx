@@ -6,11 +6,15 @@ import { useAuth } from '../../../src/components/AuthContext'; // Adjust path as
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
+import Colors from '../../constants/Colors';
+import EditReclamationScreen from './EditReclamationScreen';
 
 interface Reclamation {
   id: number;
   user_id: string;
   description: string;
+  severity: string;
+  issue_type: string;
 }
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -65,9 +69,11 @@ const ReclamationsListScreen = () => {
     <View style={{ padding: 10, marginVertical: 5, backgroundColor: '#fff', borderRadius: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5 }}>
       <Text style={{ fontSize: 18, fontWeight: 'bold' }}>Reclamation ID: {item.id}</Text>
       <Text>User ID: {item.user_id}</Text>
+      <Text>Severity: {item.severity}</Text>
+      <Text>Issue Type: {item.issue_type}</Text>
       <Text>{item.description}</Text>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
-        <TouchableOpacity onPress={() => {/* navigate to edit screen */}}>
+        <TouchableOpacity onPress={() => navigation.navigate('EditReclamation', { reclamationId: item.id.toString() })}>
           <Icon name="pencil" size={24} color="#007AFF" />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => deleteReclamation(item.id)} style={{ marginLeft: 20 }}>
@@ -80,8 +86,9 @@ const ReclamationsListScreen = () => {
   return (
     <View style={{ flex: 1, padding: 20 }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Reclamations Management</Text>
-        <TouchableOpacity onPress={handleLogout} style={{ padding: 10, backgroundColor: '#FF3B30', borderRadius: 5 }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', color:Colors.primary}}>Reclamations :</Text>
+        <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row',padding: 10, backgroundColor: '#FF3B30', borderRadius: 5 }}>
+          <Icon name="log-out" size={20} color="#fff" style={{ marginRight: 10 }} />
           <Text style={{ color: '#fff', fontWeight: 'bold' }}>Logout</Text>
         </TouchableOpacity>
       </View>

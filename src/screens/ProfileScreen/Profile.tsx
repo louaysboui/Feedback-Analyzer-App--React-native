@@ -6,7 +6,7 @@ import { useAuth } from '../../components/AuthContext';
 import styles from './ProfileStyles';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
-import { Picker } from '@react-native-picker/picker'; // Correct import
+import { Picker } from '@react-native-picker/picker';
 
 interface User {
   id: string;
@@ -16,6 +16,7 @@ interface User {
   phone?: string;
   location?: string;
   profileImage?: string;
+  imageFile?: { uri: string; type: string; name: string } | null; // Allow imageFile to be null
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
@@ -28,7 +29,8 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
   const [phone, setPhone] = useState(user?.phone || '');
   const [location, setLocation] = useState(user?.location || '');
   const [profileImage, setProfileImage] = useState<string | undefined>(user?.profileImage ?? undefined);
-  const [countryCode, setCountryCode] = useState('+216'); // Added state for country code
+  const [imageFile, setImageFile] = useState<{ uri: string; type: string; name: string } | null>(null); // Store file data
+  const [countryCode, setCountryCode] = useState('+216');
 
   const displayName = user?.name || 'Your Name';
   const displayLocation = location || 'Your Location';
@@ -49,10 +51,15 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
         console.log('ImagePicker Error: ', response.errorMessage);
         Alert.alert('Error', 'Failed to select an image. Please try again.');
       } else if (response.assets && response.assets.length > 0) {
-        const source = response.assets[0].uri;
-        if (source) {
-          setProfileImage(source);
-          Alert.alert('Success', 'Profile image updated locally.');
+        const asset = response.assets[0];
+        if (asset.uri) {
+          setProfileImage(asset.uri);
+          setImageFile({
+            uri: asset.uri,
+            type: asset.type || 'image/jpeg',
+            name: asset.fileName || `profile-${Date.now()}.jpg`,
+          });
+          Alert.alert('Success', 'Profile image selected. Save to upload.');
         } else {
           Alert.alert('Error', 'No image selected.');
         }
@@ -71,14 +78,16 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
     const updatedUserData: Partial<User> = {
       name,
       occupation,
-      phone: `${countryCode}${phone}`, // Combine country code and phone number
+      phone: `${countryCode}${phone}`,
       location,
-      profileImage,
+      profileImage: imageFile ? imageFile.uri : profileImage, // Pass the URI or existing URL
+      imageFile, // Pass the file data for upload
     };
 
     try {
       await setUserData(updatedUserData);
-      Alert.alert('Success', 'Save complete!');
+      Alert.alert('Success', 'Profile updated successfully!');
+      setImageFile(null); // Clear the file data after successful save (now allowed by the updated interface)
     } catch (error) {
       console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile. Please try again.');
@@ -95,7 +104,6 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
     { label: '🇬🇧 United Kingdom (+44)', value: '+44' },
     { label: '🇫🇷 France (+33)', value: '+33' },
   ];
-  
 
   return (
     <View style={styles.container}>
@@ -138,20 +146,20 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
         <View style={styles.inputRow}>
           <Text style={styles.label}>Phone Number</Text>
           <View style={styles.phoneInputContainer}>
-          <Picker
-  selectedValue={countryCode}
-  style={styles.countryPicker}
-  itemStyle={{ color: '#000' }}
-  onValueChange={(value) => setCountryCode(value)}
->
-  {countryCodes.map((country) => (
-    <Picker.Item
-      key={country.value}
-      label={country.label}
-      value={country.value}
-    />
-  ))}
-</Picker>
+            <Picker
+              selectedValue={countryCode}
+              style={styles.countryPicker}
+              itemStyle={{ color: '#000' }}
+              onValueChange={(value) => setCountryCode(value)}
+            >
+              {countryCodes.map((country) => (
+                <Picker.Item
+                  key={country.value}
+                  label={country.label}
+                  value={country.value}
+                />
+              ))}
+            </Picker>
             <TextInput
               style={styles.phoneInput}
               value={phone}

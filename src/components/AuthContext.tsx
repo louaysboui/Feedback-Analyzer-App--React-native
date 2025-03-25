@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../lib/supabase';
 import { Alert } from 'react-native';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 interface User {
   id: string;
@@ -12,6 +13,7 @@ interface User {
   location?: string;
   profileImage?: string;
   role?: string;
+  imageFile?: { uri: string; type: string; name: string } | null;
 }
 
 interface AuthContextType {
@@ -132,20 +134,84 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(updatedUser);
     await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
 
-    const { error } = await supabase.auth.updateUser({
+    // Handle profile image upload if provided
+    let profileImageUrl = updatedUser.profileImage;
+    if (updatedUser.imageFile) {
+      try {
+        const filePath = `profile-images/${updatedUser.imageFile.name}`;
+
+        // Read the file using react-native-blob-util
+        const fileData = await ReactNativeBlobUtil.fs.readFile(updatedUser.imageFile.uri, 'base64');
+        const blob = new Blob([fileData], { type: updatedUser.imageFile.type, lastModified: Date.now() });
+
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('profile-images')
+          .upload(filePath, blob, {
+            contentType: updatedUser.imageFile.type,
+            upsert: true, // Overwrite if the file already exists
+          });
+
+        if (uploadError) {
+          console.error('Failed to upload profile image:', uploadError);
+          throw uploadError;
+        }
+
+        // Get the public URL
+        const { data } = supabase.storage
+          .from('profile-images')
+          .getPublicUrl(filePath);
+
+        if (!data?.publicUrl) {
+          throw new Error('Failed to get public URL for profile image');
+        }
+
+        profileImageUrl = data.publicUrl;
+        updatedUser.profileImage = profileImageUrl;
+      } catch (error) {
+        console.error('Error uploading profile image:', error);
+        throw error;
+      }
+    }
+
+    // Update auth.users metadata
+    const { error: authError } = await supabase.auth.updateUser({
       data: {
         name: updatedUser.name,
         occupation: updatedUser.occupation,
         phone: updatedUser.phone,
         location: updatedUser.location,
-        profileImage: updatedUser.profileImage,
+        profileImage: profileImageUrl,
       },
     });
 
-    if (error) {
-      console.error('Failed to update user metadata in Supabase:', error);
-      throw error;
+    if (authError) {
+      console.error('Failed to update user metadata in Supabase:', authError);
+      throw authError;
     }
+
+    // Update public.users table
+    const { error: dbError } = await supabase
+      .from('users')
+      .update({
+        name: updatedUser.name,
+        email: updatedUser.email,
+        occupation: updatedUser.occupation,
+        phoneNumber: updatedUser.phone,
+        location: updatedUser.location,
+        image: profileImageUrl,
+        role: updatedUser.role,
+      })
+      .eq('id', updatedUser.id);
+
+    if (dbError) {
+      console.error('Failed to update user data in public.users:', dbError);
+      throw dbError;
+    }
+
+    // Update local state with the new profile image URL
+    setUser(updatedUser);
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
   const signOut = async () => {

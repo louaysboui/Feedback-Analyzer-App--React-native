@@ -40,6 +40,10 @@ export type RootStackParamList = {
   YoutubeHome: { channelUrl: string } | undefined;
   Youtube: { channelUrl: string };
   FavoriteFeedbacks: undefined;
+  UsersList: undefined;
+  ReclamationsList: undefined;
+  EditUser: { userId: string };
+  EditReclamation: { reclamationId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
