@@ -17,12 +17,13 @@ import 'react-native-url-polyfill/auto';
 import { Linking, View, Text } from 'react-native';
 import { supabase } from './lib/supabase';
 import DrawerContent from './src/components/DrawerContent';
-import CustomHeader from './src/components/CustomHeader'; 
+import CustomHeader from './src/components/CustomHeader';
 import 'react-native-reanimated';
 import Settings from './src/screens/SettingsScreen/Settings';
 import Reclamation from './src/screens/ReclamationScreen/Reclamation';
 import FavoriteFeedbacks from './src/screens/FavoriteFeedbacksScreen/FavoriteFeedbacks';
 import { ThemeProvider, useTheme } from './src/components/ThemeContext';
+import AdminNavigator from './src/navigation/AdminNavigator';
 
 export type RootStackParamList = {
   Profile: undefined;
@@ -50,7 +51,7 @@ const AppContent = () => {
   const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
   const navTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
 
-  // Deep link handling remains unchanged
+  // Deep link handling (unchanged)
   const handleDeepLink = async (url: string) => {
     if (url.startsWith('myapp://verify')) {
       const urlParams = new URL(url);
@@ -87,6 +88,16 @@ const AppContent = () => {
   }
 
   if (user) {
+    // Check user's role and render appropriate navigator
+    if (user.role === 'admin') {
+      return (
+        <NavigationContainer ref={navigationRef} theme={navTheme}>
+          <AdminNavigator />
+        </NavigationContainer>
+      );
+    }
+
+    // Regular user flow
     return (
       <NavigationContainer ref={navigationRef} theme={navTheme}>
         <DrawerNavigator.Navigator
@@ -156,13 +167,12 @@ const AppContent = () => {
               ),
             }}
           />
-
-
         </DrawerNavigator.Navigator>
       </NavigationContainer>
     );
   }
 
+  // Unauthenticated flow (unchanged)
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator initialRouteName="Explore">

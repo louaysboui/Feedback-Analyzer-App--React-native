@@ -13,6 +13,7 @@ import { RootStackParamList } from '../../../App';
 import { styles } from './HomeStyles.ts';
 import CustomButton from '../../components/CustomButton'; // Import the new button component
 import { useTheme } from '../../components/ThemeContext.tsx';
+import AppTextInput from '../../components/AppTextInput.tsx';
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -50,8 +51,8 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
       <Text style={styles.description}>
         Unleash the power of insight! Our analyzer transforms your feedback into clear, actionable sentiment—making every opinion count.
       </Text>
-      <TextInput
-        style={styles.input}
+      <AppTextInput
+        //style={styles.input}
         placeholder="Enter your feedback here..."
         value={text}
         onChangeText={setText}

@@ -11,6 +11,7 @@ interface User {
   phone?: string;
   location?: string;
   profileImage?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -37,25 +38,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const userData: User = {
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          if (error) throw error;
+          const fullUser: User = {
             id: session.user.id,
             email: session.user.email || '',
-            name: session.user.user_metadata?.name || '',
-            occupation: session.user.user_metadata?.occupation || '',
-            phone: session.user.user_metadata?.phone || '',
-            location: session.user.user_metadata?.location || '',
-            profileImage: session.user.user_metadata?.profileImage || '',
+            name: userData.name || '',
+            occupation: userData.occupation || '',
+            phone: userData.phone || '',
+            location: userData.location || '',
+            profileImage: userData.profileImage || '',
+            role: userData.role || 'user',
           };
-          setUser(userData);
-          await AsyncStorage.setItem('user', JSON.stringify(userData));
+          setUser(fullUser);
+          await AsyncStorage.setItem('user', JSON.stringify(fullUser));
 
           const storedWelcome = await AsyncStorage.getItem('welcomeShown');
           if (!storedWelcome) {
-            Alert.alert('Welcome', `Welcome, ${userData.name || 'User'}!`);
+            Alert.alert('Welcome', `Welcome, ${fullUser.name || 'User'}!`);
             await AsyncStorage.setItem('welcomeShown', 'true');
             setIsFirstLogin(false);
           } else {
-            setIsFirstLogin(false); // Ensure subsequent app opens don’t trigger
+            setIsFirstLogin(false);
           }
         }
       } catch (error) {
@@ -69,18 +77,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const userData: User = {
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.name || '',
-          occupation: session.user.user_metadata?.occupation || '',
-          phone: session.user.user_metadata?.phone || '',
-          location: session.user.user_metadata?.location || '',
-          profileImage: session.user.user_metadata?.profileImage || '',
-        };
-        setUser(userData);
-        AsyncStorage.setItem('user', JSON.stringify(userData));
-        // Welcome alert is handled in initializeAuth, not here
+        supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data: userData, error }) => {
+            if (error) {
+              console.error('Error fetching user data:', error);
+              return;
+            }
+            const fullUser: User = {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: userData.name || '',
+              occupation: userData.occupation || '',
+              phone: userData.phone || '',
+              location: userData.location || '',
+              profileImage: userData.profileImage || '',
+              role: userData.role || 'user',
+            };
+            setUser(fullUser);
+            AsyncStorage.setItem('user', JSON.stringify(fullUser));
+          });
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         AsyncStorage.removeItem('user');

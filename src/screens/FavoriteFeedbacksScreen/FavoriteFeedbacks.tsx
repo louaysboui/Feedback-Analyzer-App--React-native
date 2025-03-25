@@ -62,7 +62,7 @@ const FavoriteFeedbacksScreen = () => {
           {item.sentiment.charAt(0).toUpperCase() + item.sentiment.slice(1)}
         </Text>
         <TouchableOpacity onPress={() => unfavorite(item.id)} style={styles.unfavoriteButton}>
-          <Icon name="star" size={20} color="#FFD700" />
+          <Icon name="heart" size={20} color="#FF0000" />
         </TouchableOpacity>
       </View>
     );

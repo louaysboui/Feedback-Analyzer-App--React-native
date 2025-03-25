@@ -23,6 +23,8 @@ interface Feedback {
 }
 
 import { NavigationProp } from '@react-navigation/native';
+import AppTextInput from '../../components/AppTextInput';
+
 
 interface FeedbacksScreenProps {
   navigation: NavigationProp<any>;
@@ -228,7 +230,7 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
           {selectedFeedbackIds.length === 0 && (
             <>
               <TouchableOpacity onPress={() => toggleFavorite(item.id, item.is_favorite)}>
-                <Icon name={item.is_favorite ? "star" : "star-outline"} size={20} color={item.is_favorite ? "#FFD700" : "#aaa"} style={styles.actionIcon} />
+                <Icon name={item.is_favorite ? "heart" : "heart-outline"} size={20} color={item.is_favorite ? "#FF0000" : "#aaa"} style={styles.actionIcon} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleEdit(item.id)}>
                 <Icon name="pencil" size={20} color={Colors.primary} style={styles.actionIcon} />
@@ -285,8 +287,8 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Feedback</Text>
-            <TextInput
-              style={styles.modalInput}
+            <AppTextInput
+              //style={styles.modalInput}
               placeholder="Enter feedback"
               value={newFeedback}
               onChangeText={setNewFeedback}
@@ -315,7 +317,7 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Feedback</Text>
-            <TextInput
+            <AppTextInput
               style={styles.modalInput}
               placeholder="Edit feedback"
               value={editingFeedback?.content || ''}
