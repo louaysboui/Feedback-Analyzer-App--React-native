@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { ImageLibraryOptions, launchImageLibrary } from 'react-native-image-picker';
 import { useAuth } from '../../components/AuthContext';
@@ -7,6 +7,7 @@ import styles from './ProfileStyles';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
 import { Picker } from '@react-native-picker/picker';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 interface User {
   id: string;
@@ -16,7 +17,7 @@ interface User {
   phone?: string;
   location?: string;
   profileImage?: string;
-  imageFile?: { uri: string; type: string; name: string } | null; // Allow imageFile to be null
+  imageFile?: { uri: string; type: string; name: string } | null;
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
@@ -29,14 +30,36 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
   const [phone, setPhone] = useState(user?.phone || '');
   const [location, setLocation] = useState(user?.location || '');
   const [profileImage, setProfileImage] = useState<string | undefined>(user?.profileImage ?? undefined);
-  const [imageFile, setImageFile] = useState<{ uri: string; type: string; name: string } | null>(null); // Store file data
+  const [imageFile, setImageFile] = useState<{ uri: string; type: string; name: string } | null>(null);
   const [countryCode, setCountryCode] = useState('+216');
 
   const displayName = user?.name || 'Your Name';
   const displayLocation = location || 'Your Location';
   const displayEmail = user?.email || 'Email Address';
 
-  const selectImage = () => {
+  const requestStoragePermission = async () => {
+    if (Platform.OS !== 'android') return true; // No need for permission on iOS (handled by Info.plist)
+
+    const permission = Platform.Version >= 33
+      ? PERMISSIONS.ANDROID.READ_MEDIA_IMAGES
+      : PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE;
+
+    const result = await check(permission);
+    if (result === RESULTS.GRANTED) {
+      return true;
+    }
+
+    const requestResult = await request(permission);
+    return requestResult === RESULTS.GRANTED;
+  };
+
+  const selectImage = async () => {
+    const hasPermission = await requestStoragePermission();
+    if (!hasPermission) {
+      Alert.alert('Permission Denied', 'Storage permission is required to select an image.');
+      return;
+    }
+
     const options: ImageLibraryOptions = {
       mediaType: 'photo',
       quality: 1 as const,
@@ -80,14 +103,14 @@ const Profile: React.FC<Props> = ({ navigation: { navigate } }) => {
       occupation,
       phone: `${countryCode}${phone}`,
       location,
-      profileImage: imageFile ? imageFile.uri : profileImage, // Pass the URI or existing URL
-      imageFile, // Pass the file data for upload
+      profileImage: imageFile ? imageFile.uri : profileImage,
+      imageFile,
     };
 
     try {
       await setUserData(updatedUserData);
       Alert.alert('Success', 'Profile updated successfully!');
-      setImageFile(null); // Clear the file data after successful save (now allowed by the updated interface)
+      setImageFile(null);
     } catch (error) {
       console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile. Please try again.');

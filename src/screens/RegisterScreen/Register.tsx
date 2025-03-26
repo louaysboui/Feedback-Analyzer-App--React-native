@@ -169,14 +169,14 @@ const RegisterScreen: React.FC <Props>= ({navigation:{navigate}}) => {
             )}
           <AppTextInput
             placeholder="Password"
-            secureTextEntry
+            isPassword
             onChangeText={(text) => (passwordRef.current = text)}
             onBlur={() => validatePassword(passwordRef.current)}
               />
              {errors.password && <Text style={{ color: "red", marginLeft: 10 }}>{errors.password}</Text>}
           <AppTextInput
             placeholder="Confirm Password"
-            secureTextEntry
+            isPassword
             onChangeText={(text) => (confirmPasswordRef.current = text)}
           />
         </View>

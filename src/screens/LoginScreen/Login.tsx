@@ -157,7 +157,7 @@ const LoginScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
             )}
           <AppTextInput
             placeholder="Password"
-            secureTextEntry
+            isPassword
              onChangeText={(text) => (passwordRef.current = text)}
             onBlur={() => validatePassword(passwordRef.current)}
               />
