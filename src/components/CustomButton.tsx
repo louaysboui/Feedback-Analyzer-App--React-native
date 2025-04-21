@@ -4,6 +4,7 @@ import { Text, Pressable, Animated, StyleSheet } from 'react-native';
 interface CustomButtonProps {
   title: string;
   onPress: () => void;
+  disabled?: boolean; // Add the disabled prop
 }
 
 const CustomButton: React.FC<CustomButtonProps> = ({ title, onPress }) => {

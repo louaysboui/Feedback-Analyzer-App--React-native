@@ -2,7 +2,6 @@ import * as React from 'react';
 import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import Home from './src/screens/HomeScreen/Home';
 import Explore from './src/screens/ExploreScreen/Explore';
 import Dashboard from './src/screens/DashboardScreen/Dashboard';
 import Login from './src/screens/LoginScreen/Login';
@@ -24,6 +23,10 @@ import Reclamation from './src/screens/ReclamationScreen/Reclamation';
 import FavoriteFeedbacks from './src/screens/FavoriteFeedbacksScreen/FavoriteFeedbacks';
 import { ThemeProvider, useTheme } from './src/components/ThemeContext';
 import AdminNavigator from './src/navigation/AdminNavigator';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen/ResetPasswordScreen';
+
+
+
 
 export type RootStackParamList = {
   Profile: undefined;
@@ -44,6 +47,7 @@ export type RootStackParamList = {
   ReclamationsList: undefined;
   EditUser: { userId: string };
   EditReclamation: { reclamationId: string };
+  ResetPassword: undefined; // Added ResetPassword to match linking config
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -54,6 +58,17 @@ const AppContent = () => {
   const { theme } = useTheme();
   const navigationRef = React.useRef<NavigationContainerRef<RootStackParamList>>(null);
   const navTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
+
+  const linking = {
+    prefixes: ['myapp://'],
+    config: {
+      screens: {
+        ResetPassword: 'reset-password',
+        Login: 'login',
+        // Include other screens as needed
+      },
+    },
+  };
 
   // Deep link handling (unchanged)
   const handleDeepLink = async (url: string) => {
@@ -178,13 +193,14 @@ const AppContent = () => {
 
   // Unauthenticated flow (unchanged)
   return (
-    <NavigationContainer ref={navigationRef} theme={navTheme}>
+    <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
       <Stack.Navigator initialRouteName="Explore">
         <Stack.Screen name="Explore" component={Explore} options={{ headerShown: false }} />
         <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
         <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
         <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
         <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

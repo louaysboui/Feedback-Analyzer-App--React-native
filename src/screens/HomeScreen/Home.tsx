@@ -1,68 +1,117 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  SafeAreaView,
-  Alert,
-  TextInput,
-} from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import axios from 'axios';
+
 import { useAuth } from '../../components/AuthContext';
-import { getUserData } from '../../service/userService';
+import CustomButton from '../../components/CustomButton';
+import AppTextInput from '../../components/AppTextInput';
+import { styles } from './HomeStyles';
 import { RootStackParamList } from '../../../App';
-import { styles } from './HomeStyles.ts';
-import CustomButton from '../../components/CustomButton'; // Import the new button component
-import { useTheme } from '../../components/ThemeContext.tsx';
-import AppTextInput from '../../components/AppTextInput.tsx';
 
 type HomeProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
-
-  
-  // 1) Auth and user data
+const HomeScreen: React.FC<HomeProps> = () => {
   const { user } = useAuth();
-  const [userData, setUserData] = useState<any>(null);
-
-
-  // 2) Sentiment analysis states
   const [text, setText] = useState('');
   const [sentiment, setSentiment] = useState('');
+  const [confidence, setConfidence] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simple mock sentiment analysis
-  const analyzeSentiment = () => {
-    console.log('Analyzing sentiment...');
-    const fakeSentiment = Math.random() > 0.5 ? 'Positif' : 'Négatif';
-    setSentiment(fakeSentiment);
+  const API_URL = 'https://louaysboui-sentiment-twitter.hf.space/api/predict';
+
+  const analyze = async () => {
+    if (!text.trim()) {
+      setError('Please enter some text.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSentiment('');
+    setConfidence(null);
+
+    try {
+      console.log('Sending request to:', API_URL);
+      console.log('Payload:', { data: [text] });
+
+      const response = await axios.post(
+        API_URL,
+        { data: [text] },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('API response:', response.data);
+
+      // Parse the response: { "data": [{ "label": string, "confidences": [...] }] }
+      const responseData = response.data.data?.[0];
+      if (!responseData || !responseData.label || !responseData.confidences) {
+        throw new Error('Unexpected API response format');
+      }
+
+      const sentimentValue = responseData.label;
+      const confidenceValue = responseData.confidences.find(
+        (c: { label: string; confidence: number }) => c.label === sentimentValue
+      )?.confidence;
+
+      if (confidenceValue === undefined) {
+        throw new Error('Confidence value not found in response');
+      }
+
+      setSentiment(sentimentValue === 'POSITIVE' ? 'Positif' : 'Négatif');
+      setConfidence(confidenceValue);
+    } catch (e: any) {
+      console.error('API error details:', {
+        status: e?.response?.status,
+        data: e?.response?.data,
+        message: e.message,
+      });
+      setError(
+        e.response?.data?.error ||
+        e.response?.data?.detail ||
+        e.message ||
+        'Failed to analyze sentiment.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Notification / Welcome Section */}
       <View style={styles.welcomeContainer}>
         <Text style={styles.welcomeText}>
           Welcome, {user?.name || 'User'}!
         </Text>
       </View>
 
-      {/* Sentiment Analyzer UI */}
       <Text style={styles.title}>Feedback Analyzer</Text>
-      {/* Creative description for modern UI */}
       <Text style={styles.description}>
-        Unleash the power of insight! Our analyzer transforms your feedback into clear, actionable sentiment—making every opinion count.
+        Transform your feedback into clear, actionable sentiment—making every
+        opinion count.
       </Text>
+
       <AppTextInput
-        //style={styles.input}
         placeholder="Enter your feedback here..."
         value={text}
         onChangeText={setText}
         multiline
+        editable={!loading}
       />
 
-      {/* Custom Button */}
-      <CustomButton title="Analyze" onPress={analyzeSentiment} />
+      <CustomButton
+        title={loading ? 'Analyzing...' : 'Analyze'}
+        onPress={analyze}
+        disabled={loading}
+      />
 
-      {sentiment ? (
+      {loading && <ActivityIndicator style={{ marginTop: 20 }} />}
+
+      {!!sentiment && !loading && (
         <Text style={styles.result}>
           Sentiment:{' '}
           <Text
@@ -73,8 +122,19 @@ const HomeScreen: React.FC<HomeProps> = ({ navigation }) => {
           >
             {sentiment}
           </Text>
+          {confidence !== null && (
+            <Text style={styles.result}>
+              {' (Confidence: ' + confidence.toFixed(2) + ')'}
+            </Text>
+          )}
         </Text>
-      ) : null}
+      )}
+
+      {error && (
+        <Text style={[styles.result, { color: 'red' }]}>
+          Error: {error}
+        </Text>
+      )}
     </SafeAreaView>
   );
 };
