@@ -3,16 +3,16 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  processColor,
   ScrollView,
-  SafeAreaView
+  SafeAreaView,
+  processColor
 } from 'react-native';
 import { PieChart, LineChart } from 'react-native-charts-wrapper';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from '../../components/AuthContext';
 import Colors from '../../constants/Colors';
-import styles from './DashboardStyles'; // Adjust path to your styles
+import styles from './DashboardStyles';
 
 // Function to convert hex color to ARGB integer
 const convertHexToArgb = (hex: string) => {
@@ -25,22 +25,17 @@ const convertHexToArgb = (hex: string) => {
   return (a << 24) | (r << 16) | (g << 8) | b;
 };
 
-// Convert colors for line chart
-const primaryColorInt = convertHexToArgb(Colors.primary);
-const fillColorHex = Colors.primary + '66'; // semi-transparent fill
-const fillColorInt = convertHexToArgb(fillColorHex);
-
 interface Feedback {
   id: number;
   content: string;
   sentiment: string;
-  is_favorite: boolean;
   created_at: string;
+  source: 'user' | 'twitter';
 }
 
 const DashboardScreen = () => {
   const { user } = useAuth();
-  const [feedbacksData, setFeedbacksData] = useState<Feedback[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -49,20 +44,40 @@ const DashboardScreen = () => {
   }, [user]);
 
   const fetchFeedbacks = async (user: any) => {
-    const { data, error } = await supabase
+    // Fetch user feedback
+    const { data: userFeedback, error: feedbackError } = await supabase
       .from('feedbacks')
       .select('*')
       .eq('user_id', user.id);
 
-    if (error) {
-      console.error('Error fetching feedbacks:', error);
+    // Fetch Twitter feedback (last 30 days)
+    const { data: twitterFeedback, error: twitterError } = await supabase
+      .from('twitter_feedback')
+      .select('*')
+      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (feedbackError || twitterError) {
+      console.error('Errors:', feedbackError, twitterError);
     } else {
-      setFeedbacksData(data || []);
+      // Combine user and Twitter feedback
+      const combinedFeedbacks: Feedback[] = [
+        ...(userFeedback || []).map(fb => ({
+          ...fb,
+          source: 'user',
+          created_at: fb.created_at || new Date().toISOString()
+        })),
+        ...(twitterFeedback || []).map(fb => ({
+          ...fb,
+          source: 'twitter',
+          created_at: fb.created_at || new Date().toISOString()
+        }))
+      ];
+      setFeedbacks(combinedFeedbacks);
     }
   };
 
-  const totalFeedbacks = feedbacksData.length;
-  const positiveFeedbacks = feedbacksData.filter(f => f.sentiment === 'positive').length;
+  const totalFeedbacks = feedbacks.length;
+  const positiveFeedbacks = feedbacks.filter(f => f.sentiment === 'positive').length;
   const negativeFeedbacks = totalFeedbacks - positiveFeedbacks;
 
   // Pie Chart Data
@@ -78,46 +93,31 @@ const DashboardScreen = () => {
         colors: pieChartData.map(item => convertHexToArgb(item.color)),
         drawValues: true,
         valueTextSize: 14,
-        valueTextColor: convertHexToArgb('#ffffff'), // text color on slice
+        valueTextColor: convertHexToArgb('#ffffff'),
         sliceSpace: 2,
       },
     },
   ];
   const pieData = { dataSets: pieDataSets };
 
-  // Line Chart Data
-  const getMonthYear = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-  };
-
-  const getMonthYearLabel = (dateString: string) => {
-    const date = new Date(dateString);
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-  };
-
-  const feedbacksGroupedByMonth = feedbacksData.reduce(
-    (acc: { [key: string]: { count: number; label: string } }, feedback) => {
-      const monthYear = getMonthYear(feedback.created_at);
-      const label = getMonthYearLabel(feedback.created_at);
-      if (!acc[monthYear]) acc[monthYear] = { count: 0, label };
-      acc[monthYear].count++;
+  // Sentiment trend calculation
+  const getSentimentTrends = () => {
+    const grouped = feedbacks.reduce((acc: Record<string, { positive: number; negative: number }>, fb) => {
+      const date = new Date(fb.created_at).toLocaleDateString();
+      if (!acc[date]) acc[date] = { positive: 0, negative: 0 };
+      acc[date][fb.sentiment === 'positive' ? 'positive' : 'negative']++;
       return acc;
-    },
-    {}
-  );
+    }, {});
 
-  const sortedLineChartData = Object.keys(feedbacksGroupedByMonth)
-    .sort()
-    .map(monthYear => ({
-      x: monthYear,
-      y: feedbacksGroupedByMonth[monthYear].count,
-      label: feedbacksGroupedByMonth[monthYear].label,
-    }));
+    const dates = Object.keys(grouped).sort();
+    return {
+      positive: dates.map((d, i) => ({ x: i, y: grouped[d].positive })),
+      negative: dates.map((d, i) => ({ x: i, y: grouped[d].negative })),
+      labels: dates,
+    };
+  };
 
-  const chartData = sortedLineChartData.map((item, index) => ({ x: index, y: item.y }));
-  const xAxisLabels = sortedLineChartData.map(item => item.label);
+  const trends = getSentimentTrends();
 
   // Fallback for empty data
   if (totalFeedbacks === 0) {
@@ -132,9 +132,7 @@ const DashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Scrollable container */}
       <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-        
         {/* Stats Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Feedback Statistics</Text>
@@ -182,30 +180,19 @@ const DashboardScreen = () => {
           />
         </View>
 
-        {/* Line Chart Section */}
+        {/* Sentiment Trend Line Chart Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Feedback Count Over Time</Text>
+          <Text style={styles.sectionTitle}>Sentiment Trends Over Time</Text>
           <LineChart
             style={styles.chart}
             data={{
               dataSets: [
-                {
-                  values: chartData,
-                  label: 'Feedback Count',
-                  config: {
-                    color: primaryColorInt,
-                    lineWidth: 2,
-                    drawFilled: true,
-                    fillColor: fillColorInt,
-                    valueTextSize: 12,
-                    valueTextColor: processColor('#000'),
-                  },
-                },
+                { values: trends.positive, label: 'Positive', config: { color: processColor('#4CD964'), lineWidth: 2 } },
+                { values: trends.negative, label: 'Negative', config: { color: processColor('#FF3B30'), lineWidth: 2 } },
               ],
             }}
             xAxis={{
-              valueFormatter: xAxisLabels,
-              labelCount: xAxisLabels.length,
+              valueFormatter: trends.labels,
               position: 'BOTTOM',
               granularityEnabled: true,
               granularity: 1,
@@ -221,8 +208,6 @@ const DashboardScreen = () => {
               verticalAlignment: 'BOTTOM',
             }}
             drawGridBackground={false}
-            borderColor={processColor('teal')}
-            borderWidth={1}
             drawBorders={false}
             touchEnabled={true}
             dragEnabled={true}
@@ -234,6 +219,5 @@ const DashboardScreen = () => {
     </SafeAreaView>
   );
 };
-
 
 export default DashboardScreen;

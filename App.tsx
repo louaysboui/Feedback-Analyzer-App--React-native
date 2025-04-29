@@ -41,7 +41,7 @@ export type RootStackParamList = {
   Tabs: undefined;
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
-  Youtube: { channelUrl: string };
+  Youtube: { channelUrl: string ,snapshotId: string };
   FavoriteFeedbacks: undefined;
   UsersList: undefined;
   ReclamationsList: undefined;

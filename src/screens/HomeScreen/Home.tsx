@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, SafeAreaView, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import axios from 'axios';
-
 import { useAuth } from '../../components/AuthContext';
 import CustomButton from '../../components/CustomButton';
 import AppTextInput from '../../components/AppTextInput';
@@ -19,7 +18,8 @@ const HomeScreen: React.FC<HomeProps> = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = 'https://louaysboui-sentiment-twitter.hf.space/api/predict';
+  const API_URL = 'https://louaysboui-sentiment-anlaysis-twitter-improved.hf.space/predict';
+  
 
   const analyze = async () => {
     if (!text.trim()) {

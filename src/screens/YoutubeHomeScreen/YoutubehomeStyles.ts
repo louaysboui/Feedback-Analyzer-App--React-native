@@ -12,6 +12,11 @@ export const styles = StyleSheet.create({
       textAlign: 'center',
       marginBottom: 8,
     },
+    errorText: {
+      color: 'red',
+      fontSize: 14,
+      textAlign: 'center',
+    },
     subtitle: {
       fontSize: 16,
       color: 'gray',
