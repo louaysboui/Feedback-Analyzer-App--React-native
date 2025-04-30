@@ -26,7 +26,7 @@ interface ChannelItem {
   created_date?: string;
   views?: number;
   Description?: string;
-  Details?: { location?: string };
+  location?: string ;
 }
 
 interface VideoItem {
@@ -64,7 +64,7 @@ async function saveChannel(
     created_date: item.created_date ?? null,
     views: item.views ?? null,
     Description: item.Description,
-    location: item.Details?.location ?? null,
+    location: item.location ?? null,
   }));
 
   const { error: upsertErr } = await supabase
