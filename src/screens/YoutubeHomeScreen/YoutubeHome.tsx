@@ -1,3 +1,5 @@
+// src/screens/YoutubeHomeScreen/YoutubeHome.tsx
+
 import React, { useState } from 'react';
 import {
   Text,
@@ -5,25 +7,35 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../../App';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
+import { createClient } from '@supabase/supabase-js';
 import { styles } from './YoutubehomeStyles';
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+type SearchHistoryItem = {
+  name: string;
+  subscribers: string;
+  profileImage?: string;
+};
+
 export default function YoutubeHome() {
-  const [url, setUrl] = useState('');  
+  const [url, setUrl] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searchHistory, setSearchHistory] = useState<
-    { name: string; subscribers: string }[]
-  >([]);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const popularChannels = ['MKBHD', 'Veritasium', 'Fireship', 'Kurzgesagt'];
 
   const startAnalyzing = async () => {
     setErrorMessage(null);
+
     try {
-      const response = await fetch(
+      // 1) Trigger the scrape job
+      const triggerRes = await fetch(
         `${SUPABASE_URL}/functions/v1/trigger_collection-api`,
         {
           method: 'POST',
@@ -34,47 +46,68 @@ export default function YoutubeHome() {
           body: JSON.stringify({ url }),
         }
       );
+      const triggerJson = await triggerRes.json();
+      if (!triggerRes.ok || !triggerJson.snapshot_id) {
+        throw new Error(triggerJson.message ?? 'Failed to trigger job');
+      }
+      const snapshotId: string = triggerJson.snapshot_id;
 
-      const data = await response.json();
-      console.log('trigger response:', data);
-
-      // BrightData trigger returns { snapshot_id } on success,
-      // or { status: 'error', message: '…' } if something went wrong.
-      if (!response.ok || data.status === 'error' || data.error) {
-        const msg =
-          data.message ??
-          data.error ??
-          response.statusText ??
-          'Unknown error';
-        console.log('Trigger error:', msg);
-        setErrorMessage(msg);
-        return;
+      // 2) Poll until ready
+      let channelId: string | null = null;
+      for (let i = 0; i < 60; i++) { // ~2 minutes max
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: job, error: jobErr } = await supabase
+          .from('scrape_jobs')
+          .select('status, channel_id')
+          .eq('id', snapshotId)
+          .single();
+        if (jobErr) throw jobErr;
+        if (job.status === 'ready') {
+          channelId = job.channel_id;
+          break;
+        }
+        if (job.status === 'failed') {
+          throw new Error('Scrape job failed');
+        }
+      }
+      if (!channelId) {
+        throw new Error('Timed out fetching channel data');
       }
 
-      const snapshotId: string = data.snapshot_id;
-      console.log('snapshot_id:', snapshotId);
+      // 3) Fetch the channel record
+      const { data: ch, error: chErr } = await supabase
+        .from('yt_channels')
+        .select('name, subscribers, profile_image')
+        .eq('id', channelId)
+        .single();
+      if (chErr || !ch) {
+        throw new Error(chErr?.message ?? 'Channel not found');
+      }
 
-      // Add to search history
+      // 4) Update Recent Searches
       setSearchHistory((prev) => [
         ...prev,
-        { name: url, subscribers: '' },
+        {
+          name: ch.name,
+          subscribers: `${ch.subscribers.toLocaleString()} subscribers`,
+          profileImage: ch.profile_image || undefined,
+        },
       ]);
 
-      // Navigate to Youtube screen—pass both URL & snapshotId
+      // 5) Navigate as before
       navigation.navigate('Youtube', {
         channelUrl: url,
         snapshotId,
       });
     } catch (err: any) {
-      console.log('Network or parsing error:', err);
-      setErrorMessage(err.message || 'Request failed');
+      console.error(err);
+      setErrorMessage(err.message || 'Unexpected error');
     }
   };
 
   const handlePopularChannelClick = (channel: string) => {
     const aboutUrl = `https://www.youtube.com/@${channel.toLowerCase()}/about`;
     setUrl(aboutUrl);
-    // you could auto-start analyzing here, or let user tap Analyze
   };
 
   return (
@@ -127,7 +160,14 @@ export default function YoutubeHome() {
       {searchHistory.length > 0 ? (
         searchHistory.map((item, idx) => (
           <View key={idx} style={styles.searchHistoryItem}>
-            <View style={styles.avatar} />
+            {item.profileImage ? (
+              <Image
+                source={{ uri: item.profileImage }}
+                style={styles.searchHistoryAvatar}
+              />
+            ) : (
+              <View style={styles.avatar} />
+            )}
             <View>
               <Text style={styles.searchHistoryName}>{item.name}</Text>
               <Text style={styles.searchHistorySubscribers}>

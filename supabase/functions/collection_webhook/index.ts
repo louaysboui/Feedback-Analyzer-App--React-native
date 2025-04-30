@@ -1,7 +1,7 @@
 // supabase/functions/collection_webhook/index.ts
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 // ───────────────────────────────────────────────────────────
 // Configure these env vars in Supabase settings:
