@@ -27,10 +27,14 @@ const convertHexToArgb = (hex: string) => {
 
 interface Feedback {
   id: number;
-  content: string;
-  sentiment: string;
+  content?: string;
+  sentiment?: string;
   created_at: string;
   source: 'user' | 'twitter';
+  user_id?: string;
+  date?: string;
+  user?: string;
+  text?: string;
 }
 
 const DashboardScreen = () => {
@@ -39,48 +43,63 @@ const DashboardScreen = () => {
 
   useEffect(() => {
     if (user) {
-      fetchFeedbacks(user);
+      fetchFeedbacks();
     }
   }, [user]);
 
-  const fetchFeedbacks = async (user: any) => {
+  const fetchFeedbacks = async () => {
+    if (!user) {
+      console.error('No user authenticated');
+      return;
+    }
+
+    const userId = user.id;
+
     // Fetch user feedback
     const { data: userFeedback, error: feedbackError } = await supabase
       .from('feedbacks')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
-    // Fetch Twitter feedback (last 30 days)
+    // Fetch Twitter feedback (both assigned to the user and unassigned)
     const { data: twitterFeedback, error: twitterError } = await supabase
       .from('twitter_feedback')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      .select('id, date, user, text, sentiment, user_id')
+      .or(`user_id.eq.${userId},user_id.is.null`)
+      .order('date', { ascending: false });
 
     if (feedbackError || twitterError) {
-      console.error('Errors:', feedbackError, twitterError);
-    } else {
-      // Combine user and Twitter feedback
-      const combinedFeedbacks: Feedback[] = [
-        ...(userFeedback || []).map(fb => ({
-          ...fb,
-          source: 'user',
-          created_at: fb.created_at || new Date().toISOString()
-        })),
-        ...(twitterFeedback || []).map(fb => ({
-          ...fb,
-          source: 'twitter',
-          created_at: fb.created_at || new Date().toISOString()
-        }))
-      ];
-      setFeedbacks(combinedFeedbacks);
+      console.error('Errors fetching feedbacks:', feedbackError || twitterError);
     }
+
+    console.log('User Feedback:', userFeedback);
+    console.log('Twitter Feedback:', twitterFeedback);
+
+    const combinedFeedbacks: Feedback[] = [
+      ...(userFeedback || []).map(fb => ({
+        ...fb,
+        source: 'user',
+        created_at: fb.created_at || new Date().toISOString()
+      })),
+      ...(twitterFeedback || []).map(fb => ({
+        id: fb.id,
+        source: 'twitter',
+        created_at: fb.date || new Date().toISOString(),
+        sentiment: fb.sentiment || 'pending',
+        user: fb.user,
+        text: fb.text,
+        user_id: fb.user_id
+      }))
+    ];
+    setFeedbacks(combinedFeedbacks);
   };
 
   const totalFeedbacks = feedbacks.length;
   const positiveFeedbacks = feedbacks.filter(f => f.sentiment === 'positive').length;
-  const negativeFeedbacks = totalFeedbacks - positiveFeedbacks;
+  const negativeFeedbacks = feedbacks.filter(f => f.sentiment === 'negative').length;
+  const pendingFeedbacks = feedbacks.filter(f => f.sentiment === 'pending').length;
 
-  // Pie Chart Data
+  // Pie Chart Data (excluding pending)
   const pieChartData = [
     { value: positiveFeedbacks, label: 'Positive', color: '#4CD964' },
     { value: negativeFeedbacks, label: 'Negative', color: '#FF3B30' },
@@ -100,9 +119,10 @@ const DashboardScreen = () => {
   ];
   const pieData = { dataSets: pieDataSets };
 
-  // Sentiment trend calculation
+  // Sentiment trend calculation (excluding pending)
   const getSentimentTrends = () => {
     const grouped = feedbacks.reduce((acc: Record<string, { positive: number; negative: number }>, fb) => {
+      if (fb.sentiment === 'pending') return acc; // Exclude pending
       const date = new Date(fb.created_at).toLocaleDateString();
       if (!acc[date]) acc[date] = { positive: 0, negative: 0 };
       acc[date][fb.sentiment === 'positive' ? 'positive' : 'negative']++;
@@ -154,7 +174,7 @@ const DashboardScreen = () => {
 
         {/* Pie Chart Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Sentiment Distribution</Text>
+          <Text style={styles.sectionTitle}>Sentiment Distribution (Analyzed)</Text>
           <PieChart
             style={styles.chart}
             data={pieData}
@@ -182,7 +202,7 @@ const DashboardScreen = () => {
 
         {/* Sentiment Trend Line Chart Section */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Sentiment Trends Over Time</Text>
+          <Text style={styles.sectionTitle}>Sentiment Trends Over Time (Analyzed)</Text>
           <LineChart
             style={styles.chart}
             data={{

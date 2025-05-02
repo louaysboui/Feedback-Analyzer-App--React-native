@@ -5,217 +5,345 @@ import {
   View,
   Text,
   Image,
-  ScrollView,
   TouchableOpacity,
-  Linking,
   ActivityIndicator,
+  FlatList,
+  ListRenderItemInfo,
+  StyleSheet,
+  Dimensions,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { createClient } from '@supabase/supabase-js';
 import { RootStackParamList } from '../../../App';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
 
-type YoutubeScreenProps = NativeStackScreenProps<RootStackParamList, 'Youtube'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'Youtube'>;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const Youtube: React.FC<YoutubeScreenProps> = ({ route }) => {
+export default function Youtube({ route }: Props) {
   const { channelUrl, snapshotId } = route.params;
 
-  const [channel, setChannel]     = useState<any>(null);
-  const [loading, setLoading]     = useState<boolean>(true);
-  const [longWait, setLongWait]   = useState<boolean>(false);
-  const [error, setError]         = useState<string | null>(null);
+  // ─── Channel State ─────────────────────────────────────────────
+  const [channel, setChannel]   = useState<any>(null);
+  const [loading, setLoading]   = useState(true);
+  const [longWait, setLongWait] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
+  // ─── Videos State ──────────────────────────────────────────────
+  const [videos, setVideos]         = useState<any[]>([]);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [videosError, setVideosError]     = useState<string | null>(null);
+
+  // ─── Fetch Channel Info ────────────────────────────────────────
   useEffect(() => {
     if (!snapshotId) {
       setError('No snapshotId provided');
       setLoading(false);
       return;
     }
-
-    // 1) Reset state on new snapshotId
     setChannel(null);
     setError(null);
     setLoading(true);
     setLongWait(false);
 
     let isMounted = true;
-
     (async () => {
       try {
         let channelId: string | null = null;
+        setTimeout(() => { if (isMounted) setLongWait(true); }, 60_000);
 
-        // After 1 minute, show the “still fetching…” message
-        setTimeout(() => {
-          if (isMounted) setLongWait(true);
-        }, 60_000);
-
-        // Poll up to 120 times (2s interval → ~4 min)
         for (let i = 0; i < 120; i++) {
-          if (i > 0) {
-            await new Promise((r) => setTimeout(r, 2000));
-          }
-
+          if (i > 0) await new Promise(r => setTimeout(r, 2000));
           const { data: job, error: jobErr } = await supabase
             .from('scrape_jobs')
             .select('status, channel_id')
             .eq('id', snapshotId)
             .single();
-
-          console.log(`Poll #${i + 1} for ${snapshotId}:`, jobErr ?? job);
-
           if (jobErr) throw jobErr;
           if (job.status === 'ready') {
             channelId = job.channel_id;
             break;
           }
           if (job.status === 'failed') {
-            throw new Error('Scrape job failed');
+            throw new Error('Channel scrape failed');
           }
         }
+        if (!channelId) throw new Error('Channel scrape timed out');
 
-        if (!channelId) {
-          throw new Error('Scrape job timed out');
-        }
-
-        // Fetch the channel record
         const { data: ch, error: chErr } = await supabase
           .from('yt_channels')
           .select('*')
           .eq('id', channelId)
           .single();
         if (chErr) throw chErr;
-
-        if (isMounted) {
-          setChannel(ch);
-        }
-      } catch (err: any) {
-        console.error(err);
-        if (isMounted) setError(err.message || 'Unexpected error');
+        if (isMounted) setChannel(ch);
+      } catch (e: any) {
+        console.error(e);
+        if (isMounted) setError(e.message || 'Unexpected error');
       } finally {
         if (isMounted) setLoading(false);
       }
     })();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [snapshotId]);
 
-  // 2) Show full-screen loader while loading
+  // ─── Collect Videos Handler ────────────────────────────────────
+  const collectVideos = async () => {
+    setVideos([]);
+    setVideosError(null);
+    setLoadingVideos(true);
+
+    try {
+      const triggerRes = await fetch(
+        `${SUPABASE_URL}/functions/v1/trigger_videos-api`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ url: channelUrl.replace(/\/about$/, '') }),
+        }
+      );
+      const { snapshot_id: vidSnapshot } = await triggerRes.json();
+      if (!vidSnapshot) throw new Error('Failed to trigger video job');
+
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const { data: job } = await supabase
+          .from('scrape_jobs')
+          .select('status')
+          .eq('id', vidSnapshot)
+          .single();
+        if (job?.status === 'ready') break;
+        if (job?.status === 'failed') throw new Error('Video scrape failed');
+      }
+
+      const { data: vids, error: vidsErr } = await supabase
+        .from('yt_videos')
+        .select('id, title, preview_image, views, likes, date_posted')
+        .eq('youtuber_id', channel.id)
+        .order('date_posted', { ascending: false });
+      if (vidsErr) throw vidsErr;
+      setVideos(vids || []);
+    } catch (e: any) {
+      console.error(e);
+      setVideosError(e.message);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  // ─── Render Loading / Error ─────────────────────────────────────
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={styles.center}>
         <ActivityIndicator size="large" />
         {longWait && (
-          <Text style={{ marginTop: 12, color: 'gray', textAlign: 'center' }}>
-            Still fetching… sometimes big channels take a few minutes to scrape.
+          <Text style={styles.longWaitText}>
+            Still fetching channel… this can take up to a minute.
           </Text>
         )}
       </View>
     );
   }
-
-  // 3) Error state
   if (error) {
     return (
-      <View style={{ padding: 16 }}>
-        <Text style={{ color: 'red' }}>{error}</Text>
+      <View style={styles.padding}>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
-
-  // 4) No data
   if (!channel) {
     return (
-      <View style={{ padding: 16 }}>
+      <View style={styles.padding}>
         <Text>No channel data found.</Text>
       </View>
     );
   }
 
-  // 5) Render your UI with the fresh `channel` object
+  // ─── Compute Stats ─────────────────────────────────────────────
   const totalViews = `${(channel.views / 1_000_000).toFixed(1)}M`;
   const joinedYear = new Date(channel.created_date).getFullYear();
   const location   = channel.location ?? 'Unknown';
 
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: 'white' }}>
-      {/* Banner */}
+  // ─── List Header ──────────────────────────────────────────────
+  const renderHeader = () => (
+    <>
       <Image
         source={{ uri: channel.banner_img }}
-        style={{ width: '100%', height: 150 }}
+        style={styles.banner}
         resizeMode="cover"
       />
-
-      {/* Avatar & Basic Info */}
-      <View style={{ alignItems: 'center', marginTop: -50 }}>
+      <View style={styles.profileRow}>
         <Image
           source={{ uri: channel.profile_image }}
-          style={{
-            width: 100,
-            height: 100,
-            borderRadius: 50,
-            borderWidth: 3,
-            borderColor: 'white',
-          }}
+          style={styles.avatar}
         />
-        <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 10 }}>
-          {channel.name}
-        </Text>
-        <Text style={{ color: 'gray' }}>{channel.handle}</Text>
-        <Text style={{ color: 'gray', marginTop: 5 }}>
-          {channel.subscribers.toLocaleString()} subscribers •{' '}
-          {channel.videos_count} videos
+        <Text style={styles.channelName}>{channel.name}</Text>
+        <Text style={styles.channelHandle}>{channel.handle}</Text>
+        <Text style={styles.subsText}>
+          {channel.subscribers.toLocaleString()} subscribers • {channel.videos_count} videos
         </Text>
       </View>
-
-      {/* About Section */}
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 16, fontWeight: 'bold' }}>About</Text>
-        <Text style={{ color: 'gray', marginTop: 5 }}>
-          {channel.Description}
-        </Text>
+      <View style={styles.sectionPadding}>
+        <Text style={styles.sectionTitle}>About</Text>
+        <Text style={styles.aboutText}>{channel.Description}</Text>
       </View>
-
-      {/* Stats Row */}
-      <View
-        style={{
-          flexDirection: 'row',
-          justifyContent: 'space-around',
-          paddingVertical: 16,
-          borderTopWidth: 1,
-          borderBottomWidth: 1,
-          borderColor: '#eee',
-        }}
+      <View style={styles.statsRow}>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>{totalViews}</Text>
+          <Text style={styles.statLabel}>Total Views</Text>
+        </View>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>{joinedYear}</Text>
+          <Text style={styles.statLabel}>Joined</Text>
+        </View>
+        <View style={styles.stat}>
+          <Text style={styles.statValue}>{location}</Text>
+          <Text style={styles.statLabel}>Location</Text>
+        </View>
+      </View>
+      <TouchableOpacity
+        style={styles.collectBtn}
+        onPress={collectVideos}
+        disabled={loadingVideos}
       >
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{totalViews}</Text>
-          <Text style={{ color: 'gray' }}>Total Views</Text>
-        </View>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{joinedYear}</Text>
-          <Text style={{ color: 'gray' }}>Joined</Text>
-        </View>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold' }}>{location}</Text>
-          <Text style={{ color: 'gray' }}>Location</Text>
-        </View>
-      </View>
-
-      {/* Links */}
-      {Array.isArray(channel.Links) && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold' }}>Links</Text>
-          {channel.Links.map((link: string, idx: number) => (
-            <TouchableOpacity key={idx} onPress={() => Linking.openURL(link)}>
-              <Text style={{ color: 'blue', marginTop: 5 }}>{link}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <Text style={styles.collectBtnText}>
+          {loadingVideos ? 'Collecting…' : 'Collect Videos'}
+        </Text>
+      </TouchableOpacity>
+      {videosError && (
+        <Text style={styles.errorText}>{videosError}</Text>
       )}
-    </ScrollView>
+    </>
   );
-};
 
-export default Youtube;
+  // ─── Render Video Item ────────────────────────────────────────
+  const renderVideo = ({ item }: ListRenderItemInfo<any>) => (
+    <View style={styles.videoItem}>
+      <Image
+        source={{ uri: item.preview_image }}
+        style={styles.videoThumb}
+      />
+      <View style={styles.videoMeta}>
+        <Text numberOfLines={2} style={styles.videoTitle}>
+          {item.title}
+        </Text>
+        <Text style={styles.videoStats}>
+          {item.views.toLocaleString()} views • {item.likes.toLocaleString()} likes
+        </Text>
+        <Text style={styles.videoDate}>
+          {new Date(item.date_posted).toLocaleDateString()}
+        </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <FlatList
+      data={videos}
+      keyExtractor={(v) => v.id}
+      ListHeaderComponent={renderHeader}
+      renderItem={renderVideo}
+      contentContainerStyle={{ paddingBottom: 32 }}
+    />
+  );
+}
+
+const { width } = Dimensions.get('screen');
+const styles = StyleSheet.create({
+  center: {
+    flex: 1, justifyContent: 'center', alignItems: 'center'
+  },
+  padding: {
+    padding: 16
+  },
+  longWaitText: {
+    marginTop: 12, color: 'gray', textAlign: 'center'
+  },
+  errorText: {
+    color: 'red', textAlign: 'center', paddingHorizontal: 16
+  },
+  banner: {
+    width: '100%', height: 150
+  },
+  profileRow: {
+    alignItems: 'center', marginTop: -50, paddingHorizontal: 16
+  },
+  avatar: {
+    width: 100, height: 100, borderRadius: 50, borderWidth: 3,
+    borderColor: 'white'
+  },
+  channelName: {
+    fontSize: 20, fontWeight: 'bold', marginTop: 10
+  },
+  channelHandle: {
+    color: 'gray'
+  },
+  subsText: {
+    color: 'gray', marginTop: 5
+  },
+  sectionPadding: {
+    padding: 16
+  },
+  sectionTitle: {
+    fontSize: 16, fontWeight: 'bold'
+  },
+  aboutText: {
+    color: 'gray', marginTop: 5
+  },
+  statsRow: {
+    flexDirection: 'row', justifyContent: 'space-around',
+    paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1,
+    borderColor: '#eee'
+  },
+  stat: {
+    alignItems: 'center'
+  },
+  statValue: {
+    fontSize: 16, fontWeight: 'bold'
+  },
+  statLabel: {
+    color: 'gray'
+  },
+  collectBtn: {
+    backgroundColor: '#6C63FF',
+    margin: 16,
+    borderRadius: 24,
+    paddingVertical: 12,
+    alignItems: 'center'
+  },
+  collectBtnText: {
+    color: 'white', fontWeight: '600'
+  },
+  videoItem: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+    overflow: 'hidden'
+  },
+  videoThumb: {
+    width: 120,
+    height: 80
+  },
+  videoMeta: {
+    flex: 1,
+    padding: 8
+  },
+  videoTitle: {
+    fontWeight: '500'
+  },
+  videoStats: {
+    color: 'gray',
+    fontSize: 12,
+    marginTop: 4
+  },
+  videoDate: {
+    color: 'gray',
+    fontSize: 12,
+    marginTop: 2
+  },
+});
