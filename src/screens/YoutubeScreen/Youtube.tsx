@@ -1,5 +1,3 @@
-// src/screens/YoutubeScreen/Youtube.tsx
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -36,56 +34,54 @@ export default function Youtube({ route }: Props) {
 
   // ─── Fetch Channel Info ────────────────────────────────────────
   useEffect(() => {
-    if (!snapshotId) {
-      setError('No snapshotId provided');
-      setLoading(false);
-      return;
-    }
-    setChannel(null);
-    setError(null);
-    setLoading(true);
-    setLongWait(false);
+  setChannel(null);
+  setError(null);
+  setLoading(true);
+  setLongWait(false);
 
-    let isMounted = true;
-    (async () => {
-      try {
-        let channelId: string | null = null;
-        setTimeout(() => { if (isMounted) setLongWait(true); }, 60_000);
+  let isMounted = true;
+  (async () => {
+    try {
+      // Extract channel handle from URL
+      const channelHandleMatch = channelUrl.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
+      const channelHandle = channelHandleMatch ? channelHandleMatch[1] : null;
+      if (!channelHandle) {
+        throw new Error('Invalid channel URL');
+      }
 
-        for (let i = 0; i < 120; i++) {
-          if (i > 0) await new Promise(r => setTimeout(r, 2000));
-          const { data: job, error: jobErr } = await supabase
-            .from('scrape_jobs')
-            .select('status, channel_id')
-            .eq('id', snapshotId)
-            .single();
-          if (jobErr) throw jobErr;
-          if (job.status === 'ready') {
-            channelId = job.channel_id;
-            break;
-          }
-          if (job.status === 'failed') {
-            throw new Error('Channel scrape failed');
-          }
-        }
-        if (!channelId) throw new Error('Channel scrape timed out');
+      // Fetch channel directly by handle
+      let attempt = 0;
+      const maxAttempts = 3;
+      let ch = null;
+      let chErr = null;
 
-        const { data: ch, error: chErr } = await supabase
+      while (attempt < maxAttempts) {
+        const { data, error } = await supabase
           .from('yt_channels')
           .select('*')
-          .eq('id', channelId)
+          .eq('handle', `@${channelHandle}`)
           .single();
-        if (chErr) throw chErr;
-        if (isMounted) setChannel(ch);
-      } catch (e: any) {
-        console.error(e);
-        if (isMounted) setError(e.message || 'Unexpected error');
-      } finally {
-        if (isMounted) setLoading(false);
+        ch = data;
+        chErr = error;
+        if (!chErr || ch) break;
+        attempt++;
+        await new Promise((r) => setTimeout(r, 2000 * attempt)); // Exponential backoff
+        console.log(`Retry attempt ${attempt} for handle @${channelHandle}`);
       }
-    })();
-    return () => { isMounted = false; };
-  }, [snapshotId]);
+
+      if (chErr) throw chErr;
+      if (!ch) throw new Error('Channel not found after retries');
+
+      if (isMounted) setChannel(ch);
+    } catch (e: any) {
+      console.error('Channel fetch error:', e);
+      if (isMounted) setError(e.message || 'Unexpected error');
+    } finally {
+      if (isMounted) setLoading(false);
+    }
+  })();
+  return () => { isMounted = false; };
+}, [channelUrl]);
 
   // ─── Collect Videos Handler ────────────────────────────────────
   const collectVideos = async () => {

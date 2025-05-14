@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView,
   SafeAreaView,
-  processColor
+  processColor,
+  TouchableOpacity
 } from 'react-native';
 import { PieChart, LineChart } from 'react-native-charts-wrapper';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -13,6 +14,7 @@ import { supabase } from "../../../lib/supabase";
 import { useAuth } from '../../components/AuthContext';
 import Colors from '../../constants/Colors';
 import styles from './DashboardStyles';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 
 // Function to convert hex color to ARGB integer
 const convertHexToArgb = (hex: string) => {
@@ -40,58 +42,85 @@ interface Feedback {
 const DashboardScreen = () => {
   const { user } = useAuth();
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const route = useRoute<any>(); // Access route params
 
-  useEffect(() => {
-    if (user) {
-      fetchFeedbacks();
-    }
-  }, [user]);
-
-  const fetchFeedbacks = async () => {
+  const fetchFeedbacks = useCallback(async () => {
     if (!user) {
-      console.error('No user authenticated');
+      console.log('No user authenticated');
       return;
     }
 
+    setIsRefreshing(true);
     const userId = user.id;
 
-    // Fetch user feedback
-    const { data: userFeedback, error: feedbackError } = await supabase
-      .from('feedbacks')
-      .select('*')
-      .eq('user_id', userId);
+    try {
+      // Fetch user feedback
+      const { data: userFeedback, error: feedbackError } = await supabase
+        .from('feedbacks')
+        .select('*')
+        .eq('user_id', userId);
 
-    // Fetch Twitter feedback (both assigned to the user and unassigned)
-    const { data: twitterFeedback, error: twitterError } = await supabase
-      .from('twitter_feedback')
-      .select('id, date, user, text, sentiment, user_id')
-      .or(`user_id.eq.${userId},user_id.is.null`)
-      .order('date', { ascending: false });
+      // Fetch Twitter feedback (both assigned to the user and unassigned)
+      const { data: twitterFeedback, error: twitterError } = await supabase
+        .from('twitter_feedback')
+        .select('id, date, user, text, sentiment, user_id')
+        .or(`user_id.eq.${userId},user_id.is.null`)
+        .order('date', { ascending: false });
 
-    if (feedbackError || twitterError) {
-      console.error('Errors fetching feedbacks:', feedbackError || twitterError);
+      if (feedbackError) {
+        console.log('Error fetching user feedbacks:', feedbackError.message);
+      }
+      if (twitterError) {
+        console.log('Error fetching Twitter feedbacks:', twitterError.message);
+      }
+
+      console.log('Fetched User Feedback:', userFeedback);
+      console.log('Fetched Twitter Feedback:', twitterFeedback);
+
+      const combinedFeedbacks: Feedback[] = [
+        ...(userFeedback || []).map(fb => ({
+          ...fb,
+          source: 'user',
+          created_at: fb.created_at || new Date().toISOString()
+        })),
+        ...(twitterFeedback || []).map(fb => ({
+          id: fb.id,
+          source: 'twitter',
+          created_at: fb.date || new Date().toISOString(),
+          sentiment: fb.sentiment || 'pending',
+          user: fb.user,
+          text: fb.text,
+          user_id: fb.user_id
+        }))
+      ];
+      setFeedbacks(combinedFeedbacks);
+    } catch (error) {
+      console.log('Fetch error:', error);
+    } finally {
+      setIsRefreshing(false);
     }
+  }, [user]);
 
-    console.log('User Feedback:', userFeedback);
-    console.log('Twitter Feedback:', twitterFeedback);
+  // Fetch feedbacks when the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchFeedbacks();
+    }, [fetchFeedbacks])
+  );
 
-    const combinedFeedbacks: Feedback[] = [
-      ...(userFeedback || []).map(fb => ({
-        ...fb,
-        source: 'user',
-        created_at: fb.created_at || new Date().toISOString()
-      })),
-      ...(twitterFeedback || []).map(fb => ({
-        id: fb.id,
-        source: 'twitter',
-        created_at: fb.date || new Date().toISOString(),
-        sentiment: fb.sentiment || 'pending',
-        user: fb.user,
-        text: fb.text,
-        user_id: fb.user_id
-      }))
-    ];
-    setFeedbacks(combinedFeedbacks);
+  // Fetch feedbacks when the route params indicate a refresh
+  useEffect(() => {
+    if (route.params?.refresh) {
+      console.log('Refresh triggered by navigation param');
+      fetchFeedbacks();
+    }
+  }, [route.params?.refresh, fetchFeedbacks]);
+
+  // Manual refresh function
+  const handleRefresh = () => {
+    console.log('Manual refresh triggered');
+    fetchFeedbacks();
   };
 
   const totalFeedbacks = feedbacks.length;
@@ -122,7 +151,7 @@ const DashboardScreen = () => {
   // Sentiment trend calculation (excluding pending)
   const getSentimentTrends = () => {
     const grouped = feedbacks.reduce((acc: Record<string, { positive: number; negative: number }>, fb) => {
-      if (fb.sentiment === 'pending') return acc; // Exclude pending
+      if (fb.sentiment === 'pending') return acc;
       const date = new Date(fb.created_at).toLocaleDateString();
       if (!acc[date]) acc[date] = { positive: 0, negative: 0 };
       acc[date][fb.sentiment === 'positive' ? 'positive' : 'negative']++;
@@ -139,8 +168,7 @@ const DashboardScreen = () => {
 
   const trends = getSentimentTrends();
 
-  // Fallback for empty data
-  if (totalFeedbacks === 0) {
+  if (totalFeedbacks === 0 && !isRefreshing) {
     return (
       <View style={styles.containerCentered}>
         <Text style={styles.noDataText}>
@@ -153,8 +181,13 @@ const DashboardScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-        {/* Stats Section */}
         <View style={styles.sectionCard}>
+          <View style={localStyles.refreshContainer}>
+            <TouchableOpacity onPress={handleRefresh} style={localStyles.refreshButton}>
+              <Icon name="refresh" size={20} color="#fff" />
+              <Text style={localStyles.refreshText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.sectionTitle}>Feedback Statistics</Text>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
@@ -172,7 +205,6 @@ const DashboardScreen = () => {
           </View>
         </View>
 
-        {/* Pie Chart Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Sentiment Distribution (Analyzed)</Text>
           <PieChart
@@ -200,7 +232,6 @@ const DashboardScreen = () => {
           />
         </View>
 
-        {/* Sentiment Trend Line Chart Section */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Sentiment Trends Over Time (Analyzed)</Text>
           <LineChart
@@ -239,5 +270,25 @@ const DashboardScreen = () => {
     </SafeAreaView>
   );
 };
+
+// Additional styles for refresh button
+const localStyles = StyleSheet.create({
+  refreshContainer: {
+    alignItems: 'flex-end',
+    marginBottom: 10,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    padding: 8,
+    borderRadius: 5,
+  },
+  refreshText: {
+    color: '#fff',
+    marginLeft: 5,
+    fontSize: 14,
+  },
+});
 
 export default DashboardScreen;

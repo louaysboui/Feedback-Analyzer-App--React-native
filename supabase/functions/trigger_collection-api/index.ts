@@ -1,22 +1,13 @@
-// supabase/functions/trigger_collection-api/index.ts
-
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-// ───────────────────────────────────────────────────────────
-// Environment & constants
-// ───────────────────────────────────────────────────────────
 const BRIGHT_DATA_API_KEY = Deno.env.get("BRIGHT_DATA_API_KEY")!;
-const SUPABASE_URL        = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY   = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const YT_CHANNELS_DATASET_ID = "gd_lk538t2k2p1k3oos71";
 
-// ───────────────────────────────────────────────────────────
-// Main handler
-// ───────────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
   try {
-    // 1) Parse & validate body
     const { url } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(
@@ -25,7 +16,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 2) Trigger Bright Data collection
+    // Extract channel handle for later use (e.g., @cristiano)
+    const channelHandleMatch = url.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
+    const channelHandle = channelHandleMatch ? channelHandleMatch[1] : null;
+    if (!channelHandle) {
+      return new Response(
+        JSON.stringify({ status: "error", message: "Invalid YouTube channel URL" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const webhookEndpoint = `${SUPABASE_URL}/functions/v1/collection_webhook`;
     const triggerUrl = [
       "https://api.brightdata.com/datasets/v3/trigger",
@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${BRIGHT_DATA_API_KEY}`,
-        "Content-Type":  "application/json",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify([{ url }]),
     });
@@ -62,13 +62,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3) Insert job into scrape_jobs
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error: dbErr } = await supabase
       .from("scrape_jobs")
       .insert({
-        id:         snapshot_id,
-        status:     "running",
+        id: snapshot_id,
+        status: "running",
         dataset_id: YT_CHANNELS_DATASET_ID,
       });
     if (dbErr) {
@@ -79,12 +78,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4) Return the snapshot_id to the client
     return new Response(
-      JSON.stringify({ snapshot_id }),
+      JSON.stringify({ snapshot_id, channelHandle }), // Return channelHandle for app to use
       { headers: { "Content-Type": "application/json" } }
     );
-
   } catch (err: any) {
     console.error("Unexpected error:", err);
     return new Response(

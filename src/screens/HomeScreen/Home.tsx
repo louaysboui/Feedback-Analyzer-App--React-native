@@ -62,7 +62,7 @@ const HomeScreen: React.FC<HomeProps> = () => {
         throw new Error('Confidence value not found in response');
       }
 
-      setSentiment(sentimentValue === 'POSITIVE' ? 'Positif' : 'Négatif');
+      setSentiment(sentimentValue === 'POSITIVE' ? 'Positive' : 'Negative');
       setConfidence(confidenceValue);
     } catch (e: any) {
       console.error('API error details:', {

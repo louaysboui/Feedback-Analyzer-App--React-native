@@ -139,13 +139,11 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
 
     const userId = user.id;
 
-    // Fetch user feedback
     const { data: userFeedback, error: feedbackError } = await supabase
       .from('feedbacks')
       .select('*')
       .eq('user_id', userId);
 
-    // Fetch Twitter feedback (both assigned to the user and unassigned)
     const { data: twitterFeedback, error: twitterError } = await supabase
       .from('twitter_feedback')
       .select('id, date, user, text, sentiment, user_id')
@@ -260,6 +258,7 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
     }
 
     try {
+      console.log('Calling sentiment analysis API for feedback ID:', feedbackId, 'with text:', text);
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
@@ -273,28 +272,63 @@ const FeedbacksScreen = ({ navigation }: FeedbacksScreenProps) => {
       }
 
       const result = await response.json();
+      console.log('API response:', result);
+
       const responseData = result.data?.[0];
       if (!responseData || !responseData.label) {
         throw new Error('Unexpected API response format');
       }
       const newSentiment = responseData.label.toLowerCase();
+      console.log('Extracted sentiment:', newSentiment);
 
-      const { error } = await supabase
+      // Pre-update check: Verify the row exists
+      const { data: existingFeedback, error: fetchError } = await supabase
+        .from('twitter_feedback')
+        .select('id, sentiment, user_id')
+        .eq('id', feedbackId)
+        .single();
+
+      if (fetchError || !existingFeedback) {
+        console.error('Row not found or fetch error for feedback ID:', feedbackId, 'Error:', fetchError);
+        Alert.alert('Error', 'Feedback not found in database');
+        return;
+      }
+      console.log('Existing feedback before update:', existingFeedback);
+
+      // Perform the update
+      const { data, error } = await supabase
         .from('twitter_feedback')
         .update({ sentiment: newSentiment, user_id: user.id })
-        .eq('id', feedbackId);
+        .eq('id', feedbackId)
+        .select();
 
       if (error) {
-        console.error('Error updating sentiment:', error);
-        Alert.alert('Error', 'Failed to analyze sentiment');
-      } else {
-        setFeedbacks(feedbacks.map(f => 
-          f.id === feedbackId && f.source === 'twitter' ? { ...f, sentiment: newSentiment, user_id: user.id } : f
-        ));
+        console.error('Error updating sentiment in Supabase:', error.message);
+        Alert.alert('Error', 'Failed to save sentiment to database: ' + error.message);
+        return;
       }
+
+      if (!data || data.length === 0) {
+        console.error('No rows updated in Supabase for feedback ID:', feedbackId);
+        Alert.alert('Error', 'No rows updated in database');
+        return;
+      }
+
+      console.log('Updated feedback in Supabase:', data[0]);
+
+      // Update local state
+      setFeedbacks(feedbacks.map(f => 
+        f.id === feedbackId && f.source === 'twitter' ? { ...f, sentiment: newSentiment, user_id: user.id } : f
+      ));
+
+      // Refetch feedbacks to ensure consistency
+      await fetchFeedbacks();
+
+      // Show success message
+      Alert.alert('Success', 'Sentiment analyzed and saved successfully!');
     } catch (error) {
-      console.error('API error:', error);
-      Alert.alert('Error', 'Failed to connect to sentiment analysis API');
+      console.error('Sentiment analysis error:', error);
+      Alert.alert('Error', 'Failed to connect to sentiment analysis API: ' + (error as Error).message);
     }
   };
 

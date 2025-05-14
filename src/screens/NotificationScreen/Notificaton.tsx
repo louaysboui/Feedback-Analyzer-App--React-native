@@ -1,21 +1,24 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Slider from '@react-native-community/slider';
-import { supabase } from "../../../lib/supabase"; // Adjust path to your Supabase config
-import { useAuth } from '../../components/AuthContext'; // Adjust path to your auth context
-import Colors from '../../constants/Colors'; // Adjust path to your color constants
+import { supabase } from "../../../lib/supabase";
+import { useAuth } from '../../components/AuthContext';
+import Colors from '../../constants/Colors';
 import Icon from 'react-native-vector-icons/Ionicons';
-import styles from './NotificationStyles'; // Adjust path to your styles
+import styles from './NotificationStyles';
 
-// Feedback interface
 interface Feedback {
   id: number;
-  content: string;
-  sentiment: string;
-  created_at: string;
+  content?: string;
+  sentiment?: string;
+  created_at?: string;
+  source: 'user' | 'twitter';
+  user_id?: string;
+  date?: string;
+  user?: string;
+  text?: string;
 }
 
-// Notification interface
 interface Notification {
   id: number;
   message: string;
@@ -23,54 +26,83 @@ interface Notification {
 }
 
 const NotificationScreen = () => {
-  const { user } = useAuth(); // Get the authenticated user
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [threshold, setThreshold] = useState(5); // Default critical threshold
   const [negativeCount, setNegativeCount] = useState(0);
   const [lastCheckedNegativeCount, setLastCheckedNegativeCount] = useState(0); // Track last checked count
+  const lastNotifiedCount = useRef(0); // Use ref to track last notified count across renders
 
-  // Fetch feedback data when the user is available
-  useEffect(() => {
-    if (user) fetchFeedbacks(user);
-  }, [user]);
-
-  // Fetch feedbacks and generate notifications only for new negative feedbacks
+  // Fetch feedbacks from both tables
   const fetchFeedbacks = async (user: any) => {
-    const { data, error } = await supabase
-      .from('feedbacks')
-      .select('*')
-      .eq('user_id', user.id);
-    if (error) {
-      console.error('Error fetching feedbacks:', error);
-    } else {
-      const negative = data.filter((f: Feedback) => f.sentiment === 'negative').length;
+    if (!user) return;
+
+    const userId = user.id;
+    try {
+      // Fetch user feedbacks
+      const { data: userFeedback, error: feedbackError } = await supabase
+        .from('feedbacks')
+        .select('*')
+        .eq('user_id', userId);
+
+      // Fetch Twitter feedbacks (owned or unassigned)
+      const { data: twitterFeedback, error: twitterError } = await supabase
+        .from('twitter_feedback')
+        .select('id, date, user, text, sentiment, user_id')
+        .or(`user_id.eq.${userId},user_id.is.null`);
+
+      if (feedbackError || twitterError) {
+        console.error('Error fetching feedbacks:', feedbackError || twitterError);
+        return;
+      }
+
+      const combinedFeedbacks: Feedback[] = [
+        ...(userFeedback || []).map(fb => ({
+          ...fb,
+          source: 'user',
+          created_at: fb.created_at || new Date().toISOString(),
+        })),
+        ...(twitterFeedback || []).map(fb => ({
+          id: fb.id,
+          source: 'twitter',
+          created_at: fb.date || new Date().toISOString(),
+          sentiment: fb.sentiment || 'pending',
+          user: fb.user,
+          text: fb.text,
+          user_id: fb.user_id,
+        })),
+      ];
+
+      const negative = combinedFeedbacks.filter(f => f.sentiment === 'negative').length;
       setNegativeCount(negative);
 
-      // Generate notification only if negative count increased and exceeds threshold
-      if (negative > threshold && negative > lastCheckedNegativeCount) {
+      // Generate notification only if negative count increased beyond threshold and not already notified
+      if (negative > threshold && negative > lastNotifiedCount.current) {
         const newNotification = {
           id: Date.now(),
           message: `Negative feedbacks (${negative}) exceed the threshold of ${threshold}`,
           timestamp: new Date().toLocaleString(),
         };
         setNotifications((prev) => [...prev, newNotification]);
+        lastNotifiedCount.current = negative; // Update last notified count
       }
       setLastCheckedNegativeCount(negative); // Update last checked count
+    } catch (error) {
+      console.error('Fetch error:', error);
     }
   };
 
   // Handle threshold changes and check for notifications
   const handleThresholdChange = (value: number) => {
-    setThreshold(value);
-    // Check if current negative count exceeds the new threshold
-    if (negativeCount > value && negativeCount > lastCheckedNegativeCount) {
+    setThreshold(Math.round(value)); // Round to nearest integer
+    if (negativeCount > Math.round(value) && negativeCount > lastNotifiedCount.current) {
       const newNotification = {
         id: Date.now(),
-        message: `Negative feedbacks (${negativeCount}) exceed the new threshold of ${value}`,
+        message: `Negative feedbacks (${negativeCount}) exceed the new threshold of ${Math.round(value)}`,
         timestamp: new Date().toLocaleString(),
       };
       setNotifications((prev) => [...prev, newNotification]);
-      setLastCheckedNegativeCount(negativeCount);
+      lastNotifiedCount.current = negativeCount; // Update last notified count
     }
   };
 
@@ -87,7 +119,40 @@ const NotificationScreen = () => {
   // Clear all notifications
   const clearAllNotifications = () => {
     setNotifications([]);
+    lastNotifiedCount.current = 0; // Reset last notified count
   };
+
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!user) return;
+
+    const userId = user.id;
+    const channels = [
+      supabase
+        .channel('feedbacks-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'feedbacks', filter: `user_id=eq.${userId}` }, (payload) => {
+          fetchFeedbacks(user);
+        })
+        .subscribe(),
+      supabase
+        .channel('twitter_feedback-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'twitter_feedback', filter: `user_id=eq.${userId}` }, (payload) => {
+          fetchFeedbacks(user);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'twitter_feedback', filter: 'user_id=is.null' }, (payload) => {
+          fetchFeedbacks(user);
+        })
+        .subscribe(),
+    ];
+
+    // Initial fetch
+    fetchFeedbacks(user);
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      channels.forEach(channel => supabase.removeChannel(channel));
+    };
+  }, [user]);
 
   return (
     <View style={styles.container}>
@@ -155,7 +220,5 @@ const NotificationScreen = () => {
     </View>
   );
 };
-
-
 
 export default NotificationScreen;
