@@ -1,61 +1,144 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, Linking } from 'react-native';
-import { supabase } from '../../../lib/supabase'; // adjust path as needed
+import { View, Text, TouchableOpacity, Alert, Linking, SafeAreaView } from 'react-native';
+import { supabase } from '../../../lib/supabase';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../App';
+import AppTextInput from '../../components/AppTextInput';
+import Colors from '../../constants/Colors';
+import FontSize from '../../constants/FontSize';
+import Spacing from '../../constants/Spacing';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ResetPassword'>;
 
-const ResetPasswordScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
+const ResetPasswordScreen: React.FC<Props> = ({ navigation, route }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ newPassword?: string; confirmPassword?: string }>({});
 
-  // ✅ Step 1: Capture deep link URL and extract access_token
-  useEffect(() => {
-    const getTokenFromUrl = (url: string) => {
-      const regex = /access_token=([^&]+)/;
-      const match = url.match(regex);
-      return match ? decodeURIComponent(match[1]) : null;
+  // Handle deep link URL and extract access_token and refresh_token from fragment
+  const getTokensFromUrl = (url: string) => {
+    console.log('Processing URL:', url);
+    const regexAccessToken = /access_token=([^&]+)/;
+    const regexRefreshToken = /refresh_token=([^&]+)/;
+    const matchAccessToken = url.match(regexAccessToken);
+    const matchRefreshToken = url.match(regexRefreshToken);
+    return {
+      accessToken: matchAccessToken ? decodeURIComponent(matchAccessToken[1]) : null,
+      refreshToken: matchRefreshToken ? decodeURIComponent(matchRefreshToken[1]) : null,
     };
+  };
+
+  const handleUrl = async (url: string | null) => {
+    if (url) {
+      const { accessToken, refreshToken } = getTokensFromUrl(url);
+      console.log('Extracted access token:', accessToken);
+      console.log('Extracted refresh token:', refreshToken);
+      if (accessToken && refreshToken) {
+        setAccessToken(accessToken);
+        setRefreshToken(refreshToken);
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          console.log('Session error:', error.message);
+          Alert.alert('Session Error', error.message);
+        } else {
+          console.log('Session set with access token');
+        }
+      } else {
+        console.log('Missing access token or refresh token in URL');
+        Alert.alert('Error', 'Invalid reset link');
+      }
+    } else {
+      console.log('No URL provided');
+    }
+  };
+
+  useEffect(() => {
+    const deepLinkUrl = route.params?.deepLinkUrl;
+    if (deepLinkUrl) {
+      handleUrl(deepLinkUrl);
+    }
 
     const handleInitialUrl = async () => {
       const url = await Linking.getInitialURL();
-      if (url) {
-        const token = getTokenFromUrl(url);
-        if (token) {
-          setAccessToken(token);
-          const { error } = await supabase.auth.setSession({
-            access_token: token,
-            refresh_token: '', // Leave blank; only access_token is needed for reset
-          });
-          if (error) {
-            Alert.alert('Session Error', error.message);
-          } else {
-            console.log('Session set with access token');
-          }
-        }
+      console.log('Initial URL:', url);
+      if (url && !deepLinkUrl) {
+        handleUrl(url);
       }
     };
-
     handleInitialUrl();
-  }, []);
 
-  // ✅ Step 2: Handle the password update
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('Received dynamic URL:', url);
+      handleUrl(url);
+    });
+
+    return () => subscription.remove();
+  }, [route.params?.deepLinkUrl]);
+
+  // Password validation (same as LoginScreen)
+  const validatePassword = (password: string) => {
+    let passwordError = '';
+    if (password.length < 8) {
+      passwordError = 'Error: Password must be at least 8 characters';
+    } else if (!/[A-Z]/.test(password)) {
+      passwordError = 'Error: Password must contain at least one uppercase letter';
+    } else if (!/[0-9]/.test(password)) {
+      passwordError = 'Error: Password must contain at least one number';
+    }
+
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (passwordError) {
+        updatedErrors.newPassword = passwordError;
+      } else {
+        delete updatedErrors.newPassword;
+      }
+      return updatedErrors;
+    });
+
+    return passwordError === '';
+  };
+
+  const validateConfirmPassword = (confirm: string) => {
+    let confirmError = '';
+    if (confirm !== newPassword) {
+      confirmError = 'Error: Passwords do not match';
+    }
+
+    setErrors((prevErrors) => {
+      const updatedErrors = { ...prevErrors };
+      if (confirmError) {
+        updatedErrors.confirmPassword = confirmError;
+      } else {
+        delete updatedErrors.confirmPassword;
+      }
+      return updatedErrors;
+    });
+
+    return confirmError === '';
+  };
+
   const handleResetPassword = async () => {
+    const isNewPasswordValid = validatePassword(newPassword);
+    const isConfirmPasswordValid = validateConfirmPassword(confirmPassword);
+
     if (!newPassword || !confirmPassword) {
       Alert.alert('Error', 'Please fill out both fields');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+    if (!isNewPasswordValid || !isConfirmPasswordValid) {
       return;
     }
 
-    if (!accessToken) {
-      Alert.alert('Error', 'Missing access token');
+    if (!accessToken || !refreshToken) {
+      Alert.alert('Error', 'Missing access token or refresh token');
       return;
     }
 
@@ -67,39 +150,92 @@ const ResetPasswordScreen: React.FC<Props> = ({ navigation: { navigate } }) => {
       Alert.alert('Error', error.message);
     } else {
       Alert.alert('Success', 'Password updated');
-      navigate('Login');
+      await supabase.auth.signOut();
+      navigation.navigate('Login');
     }
   };
 
   return (
-    <View style={{ padding: 20, marginTop: 50 }}>
-      <Text style={{ fontSize: 24, marginBottom: 20 }}>Reset Password</Text>
+    <SafeAreaView>
+      <View style={{ padding: Spacing * 2 }}>
+        <View style={{ alignItems: 'center' }}>
+          <Text
+            style={{
+              fontSize: FontSize.xLarge,
+              color: Colors.primary,
+              fontFamily: 'Poppins-Bold',
+              marginVertical: Spacing * 3,
+            }}
+          >
+            Reset Password
+          </Text>
+          <Text
+            style={{
+              fontFamily: 'Poppins-SemiBold',
+              fontSize: FontSize.large,
+              maxWidth: '60%',
+              textAlign: 'center',
+            }}
+          >
+            Enter your new password below
+          </Text>
+        </View>
 
-      <TextInput
-        style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 10 }}
-        value={newPassword}
-        onChangeText={setNewPassword}
-        placeholder="New Password"
-        secureTextEntry
-      />
-      <TextInput
-        style={{ borderWidth: 1, borderColor: '#ccc', padding: 10, marginBottom: 20 }}
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        placeholder="Confirm Password"
-        secureTextEntry
-      />
+        {/* Input Fields */}
+        <View style={{ marginVertical: Spacing * 3 }}>
+          <AppTextInput
+            placeholder="New Password"
+            isPassword
+            onChangeText={(text) => {
+              setNewPassword(text);
+              validatePassword(text);
+            }}
+            onBlur={() => validatePassword(newPassword)}
+          />
+          {errors.newPassword && (
+            <Text style={{ color: 'red', marginLeft: 10 }}>{errors.newPassword}</Text>
+          )}
+          <AppTextInput
+            placeholder="Confirm Password"
+            isPassword
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              validateConfirmPassword(text);
+            }}
+            onBlur={() => validateConfirmPassword(confirmPassword)}
+          />
+          {errors.confirmPassword && (
+            <Text style={{ color: 'red', marginLeft: 10 }}>{errors.confirmPassword}</Text>
+          )}
+        </View>
 
-      <TouchableOpacity
-        onPress={handleResetPassword}
-        style={{ backgroundColor: 'blue', padding: 15, borderRadius: 5 }}
-        disabled={loading}
-      >
-        <Text style={{ color: 'white', textAlign: 'center' }}>
-          {loading ? 'Updating...' : 'Update Password'}
-        </Text>
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity
+          onPress={handleResetPassword}
+          style={{
+            padding: Spacing * 2,
+            backgroundColor: Colors.primary,
+            marginVertical: Spacing * 3,
+            borderRadius: Spacing,
+            shadowColor: Colors.primary,
+            shadowOffset: { width: 0, height: Spacing },
+            shadowOpacity: 0.3,
+            shadowRadius: Spacing,
+          }}
+          disabled={loading}
+        >
+          <Text
+            style={{
+              fontFamily: 'Poppins-Bold',
+              color: Colors.onPrimary,
+              textAlign: 'center',
+              fontSize: FontSize.large,
+            }}
+          >
+            {loading ? 'Updating...' : 'Update Password'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 };
 

@@ -1,5 +1,10 @@
 import * as React from 'react';
-import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  NavigationContainerRef,
+  DefaultTheme,
+  DarkTheme,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import Explore from './src/screens/ExploreScreen/Explore';
@@ -25,9 +30,6 @@ import { ThemeProvider, useTheme } from './src/components/ThemeContext';
 import AdminNavigator from './src/navigation/AdminNavigator';
 import ResetPasswordScreen from './src/screens/ResetPasswordScreen/ResetPasswordScreen';
 
-
-
-
 export type RootStackParamList = {
   Profile: undefined;
   Settings: undefined;
@@ -41,13 +43,13 @@ export type RootStackParamList = {
   Tabs: undefined;
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
-  Youtube: { channelUrl: string ,snapshotId: string };
+  Youtube: { channelUrl: string; snapshotId: string };
   FavoriteFeedbacks: undefined;
   UsersList: undefined;
   ReclamationsList: undefined;
   EditUser: { userId: string };
   EditReclamation: { reclamationId: string };
-  ResetPassword: undefined; // Added ResetPassword to match linking config
+  ResetPassword: { deepLinkUrl?: string }; // Updated to accept deepLinkUrl
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -65,23 +67,28 @@ const AppContent = () => {
       screens: {
         ResetPassword: 'reset-password',
         Login: 'login',
-        // Include other screens as needed
       },
     },
   };
 
-  // Deep link handling (unchanged)
   const handleDeepLink = async (url: string) => {
+    console.log('Handling deep link:', url);
     if (url.startsWith('myapp://verify')) {
       const urlParams = new URL(url);
       const code = urlParams.searchParams.get('code');
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
-          console.error(error);
+          console.error('Error exchanging code:', error);
         } else {
           console.log('Session created:', data.session);
         }
+      }
+    } else if (url.startsWith('myapp://reset-password')) {
+      if (navigationRef.current) {
+        navigationRef.current.navigate('ResetPassword', { deepLinkUrl: url });
+      } else {
+        console.log('Navigation ref not ready');
       }
     }
   };
@@ -90,11 +97,13 @@ const AppContent = () => {
     const subscription = Linking.addEventListener('url', (event) => {
       handleDeepLink(event.url);
     });
+
     Linking.getInitialURL().then((url) => {
       if (url) {
         handleDeepLink(url);
       }
     });
+
     return () => subscription.remove();
   }, []);
 
@@ -107,18 +116,16 @@ const AppContent = () => {
   }
 
   if (user) {
-    // Check user's role and render appropriate navigator
     if (user.role === 'admin') {
       return (
-        <NavigationContainer ref={navigationRef} theme={navTheme}>
+        <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
           <AdminNavigator />
         </NavigationContainer>
       );
     }
 
-    // Regular user flow
     return (
-      <NavigationContainer ref={navigationRef} theme={navTheme}>
+      <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
         <DrawerNavigator.Navigator
           drawerContent={(props) => <DrawerContent {...props} />}
         >
@@ -127,7 +134,11 @@ const AppContent = () => {
             component={Bottombar}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
           />
@@ -136,7 +147,11 @@ const AppContent = () => {
             component={Profile}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
           />
@@ -145,7 +160,11 @@ const AppContent = () => {
             component={About}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
           />
@@ -164,7 +183,11 @@ const AppContent = () => {
             component={Settings}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
           />
@@ -173,7 +196,11 @@ const AppContent = () => {
             component={Reclamation}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
           />
@@ -182,16 +209,24 @@ const AppContent = () => {
             component={FavoriteFeedbacks}
             options={{
               header: (props) => (
-                <CustomHeader {...props} back={undefined} onMenuPress={() => props.navigation.toggleDrawer()} />
+                <CustomHeader
+                  {...props}
+                  back={undefined}
+                  onMenuPress={() => props.navigation.toggleDrawer()}
+                />
               ),
             }}
+          />
+          <DrawerNavigator.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+            options={{ headerShown: false }}
           />
         </DrawerNavigator.Navigator>
       </NavigationContainer>
     );
   }
 
-  // Unauthenticated flow (unchanged)
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking}>
       <Stack.Navigator initialRouteName="Explore">
@@ -200,7 +235,7 @@ const AppContent = () => {
         <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
         <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
         <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
-        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
