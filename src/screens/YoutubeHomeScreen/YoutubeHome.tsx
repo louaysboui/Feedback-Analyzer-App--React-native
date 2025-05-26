@@ -1,3 +1,4 @@
+// --- YoutubeHome.tsx ---
 import React, { useState, useEffect } from 'react';
 import {
   Text,
@@ -30,7 +31,6 @@ export default function YoutubeHome() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const popularChannels = ['MKBHD', 'Veritasium', 'Fireship', 'Kurzgesagt'];
 
-  // Load search history from AsyncStorage on mount
   useEffect(() => {
     const loadSearchHistory = async () => {
       try {
@@ -45,7 +45,6 @@ export default function YoutubeHome() {
     loadSearchHistory();
   }, []);
 
-  // Save search history to AsyncStorage whenever it changes
   useEffect(() => {
     const saveSearchHistory = async () => {
       try {
@@ -59,120 +58,48 @@ export default function YoutubeHome() {
 
   const startAnalyzing = async () => {
   setErrorMessage(null);
-
   try {
-    // Extract channel handle from URL
-    const channelHandleMatch = url.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
-    const channelHandle = channelHandleMatch ? channelHandleMatch[1] : null;
-    if (!channelHandle) {
-      throw new Error('Invalid channel URL');
-    }
+    const handleMatch = url.match(/youtube\.com\/@([\w\-]+)/);
+    const channelHandle = handleMatch ? handleMatch[1] : null;
+    if (!channelHandle) throw new Error('Invalid channel URL');
 
-    // Check if channel already exists in yt_channels
-    const { data: existingChannel, error: chErr } = await supabase
-      .from('yt_channels')
-      .select('id, name, subscribers, profile_image')
-      .eq('handle', `@${channelHandle}`)
-      .single();
-
-    if (chErr && chErr.code !== 'PGRST116') { // PGRST116 means no rows found
-      throw new Error(chErr.message);
-    }
-
-    if (existingChannel) {
-      // Channel exists, add to search history and navigate
-      setSearchHistory((prev) => [
-        ...prev,
-        {
-          name: existingChannel.name,
-          subscribers: `${existingChannel.subscribers.toLocaleString()} subscribers`,
-          profileImage: existingChannel.profile_image || undefined,
-          url,
-        },
-      ]);
-      navigation.navigate('Youtube', {
-        channelUrl: url,
-        snapshotId: '',
-      });
-      return;
-    }
-
-    // Trigger new scrape if channel doesn't exist
-    const triggerRes = await fetch(
-      `${SUPABASE_URL}/functions/v1/trigger_collection-api`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ url }),
-      }
+    // Step 1: Search to get channelId
+    const searchRes = await fetch(
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${channelHandle}&key=${process.env.YOUTUBE_API_KEY}`
     );
-    const triggerJson = await triggerRes.json();
-    if (!triggerRes.ok || !triggerJson.snapshot_id) {
-      throw new Error(triggerJson.message ?? 'Failed to trigger job');
-    }
-    const snapshotId: string = triggerJson.snapshot_id;
-    const channelHandleFromResponse: string = triggerJson.channelHandle;
-
-    let channelId: string | null = null;
-    for (let i = 0; i < 30; i++) { // Reduce to 1 minute
-      await new Promise((r) => setTimeout(r, 2000));
-      const { data: job, error: jobErr } = await supabase
-        .from('scrape_jobs')
-        .select('status, channel_id')
-        .eq('id', snapshotId)
-        .single();
-      if (jobErr) {
-        console.error('Job query error:', jobErr.message);
-        throw jobErr;
-      }
-      if (job.status === 'ready') {
-        channelId = job.channel_id;
-        break;
-      }
-      if (job.status === 'failed') {
-        throw new Error('Scrape job failed');
-      }
-    }
-    if (!channelId) {
-      const { data: channel, error: chErr } = await supabase
-        .from('yt_channels')
-        .select('id')
-        .eq('handle', `@${channelHandleFromResponse}`)
-        .single();
-      if (chErr || !channel) {
-        throw new Error('Timed out fetching channel data');
-      }
-      channelId = channel.id;
+    const searchData = await searchRes.json();
+    if (!searchData.items || searchData.items.length === 0) {
+      throw new Error('Channel not found during search');
     }
 
-    const { data: ch, error: fetchErr } = await supabase // Renamed chErr to fetchErr
-      .from('yt_channels')
-      .select('name, subscribers, profile_image')
-      .eq('id', channelId)
-      .single();
-    if (fetchErr || !ch) {
-      throw new Error(fetchErr?.message ?? 'Channel not found');
+    const channelId = searchData.items[0].snippet.channelId;
+
+    // Step 2: Get channel details using channelId
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${process.env.YOUTUBE_API_KEY}`
+    );
+    const data = await res.json();
+    if (!res.ok || !data.items || !data.items.length) {
+      throw new Error('Channel not found via YouTube API');
     }
 
-    setSearchHistory((prev) => [
-      ...prev,
-      {
-        name: ch.name,
-        subscribers: `${ch.subscribers.toLocaleString()} subscribers`,
-        profileImage: ch.profile_image || undefined,
-        url,
-      },
-    ]);
+    const channel = data.items[0];
+
+    const item: SearchHistoryItem = {
+      name: channel.snippet.title,
+      subscribers: `${parseInt(channel.statistics.subscriberCount).toLocaleString()} subscribers`,
+      profileImage: channel.snippet.thumbnails.default.url,
+      url,
+    };
+
+    setSearchHistory((prev) => [...prev, item]);
 
     navigation.navigate('Youtube', {
       channelUrl: url,
-      snapshotId,
+      snapshotId: '',
     });
   } catch (err: any) {
-    console.error('Start analyzing error:', err);
+    console.error('YouTube API error:', err);
     setErrorMessage(err.message || 'Unexpected error');
   }
 };
@@ -192,10 +119,7 @@ export default function YoutubeHome() {
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>YouTube Channel Analyzer</Text>
-      <Text style={styles.subtitle}>
-        Discover insights about any YouTube channel
-      </Text>
-
+      <Text style={styles.subtitle}>Discover insights about any YouTube channel</Text>
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.input}
@@ -214,22 +138,15 @@ export default function YoutubeHome() {
       </View>
 
       {errorMessage && (
-        <Text style={[styles.errorText, { marginBottom: 12 }]}>
-          {errorMessage}
-        </Text>
+        <Text style={[styles.errorText, { marginBottom: 12 }]}>{errorMessage}</Text>
       )}
 
-      <Text style={styles.exampleTitle}>
-        Example: https://youtube.com/@mkbhd
-      </Text>
+      <Text style={styles.exampleTitle}>Example: https://youtube.com/@mkbhd</Text>
 
       <Text style={styles.sectionTitle}>Popular Channels</Text>
       <View style={styles.popularChannelsContainer}>
         {popularChannels.map((channel, idx) => (
-          <TouchableOpacity
-            key={idx}
-            onPress={() => handlePopularChannelClick(channel)}
-          >
+          <TouchableOpacity key={idx} onPress={() => handlePopularChannelClick(channel)}>
             <Text style={styles.popularChannelText}>{channel}</Text>
           </TouchableOpacity>
         ))}
@@ -244,18 +161,13 @@ export default function YoutubeHome() {
             onPress={() => handleHistoryClick(item)}
           >
             {item.profileImage ? (
-              <Image
-                source={{ uri: item.profileImage }}
-                style={styles.searchHistoryAvatar}
-              />
+              <Image source={{ uri: item.profileImage }} style={styles.searchHistoryAvatar} />
             ) : (
               <View style={styles.avatar} />
             )}
             <View>
               <Text style={styles.searchHistoryName}>{item.name}</Text>
-              <Text style={styles.searchHistorySubscribers}>
-                {item.subscribers}
-              </Text>
+              <Text style={styles.searchHistorySubscribers}>{item.subscribers}</Text>
             </View>
           </TouchableOpacity>
         ))

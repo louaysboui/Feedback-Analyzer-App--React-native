@@ -16,160 +16,216 @@ import { RootStackParamList } from '../../../App';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Youtube'>;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  db: { schema: 'public' } // Explicitly specify schema
+});
 
 export default function Youtube({ route }: Props) {
   const { channelUrl, snapshotId } = route.params;
 
-  // ─── Channel State ─────────────────────────────────────────────
-  const [channel, setChannel]   = useState<any>(null);
-  const [loading, setLoading]   = useState(true);
-  const [longWait, setLongWait] = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-
-  // ─── Videos State ──────────────────────────────────────────────
-  const [videos, setVideos]         = useState<any[]>([]);
+  // State management
+  const [channel, setChannel] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [videos, setVideos] = useState<any[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
-  const [videosError, setVideosError]     = useState<string | null>(null);
+  const [videosError, setVideosError] = useState<string | null>(null);
 
-  // ─── Fetch Channel Info ────────────────────────────────────────
+  // Fetch channel info
   useEffect(() => {
-  setChannel(null);
-  setError(null);
-  setLoading(true);
-  setLongWait(false);
+    const fetchChannel = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Extract handle from URL
+        const handleMatch = channelUrl.match(/youtube\.com\/(@[a-zA-Z0-9_-]+)/);
+        const handle = handleMatch ? handleMatch[1] : null;
+        
+        if (!handle) {
+          throw new Error('Invalid YouTube channel URL');
+        }
 
-  let isMounted = true;
-  (async () => {
-    try {
-      // Extract channel handle from URL
-      const channelHandleMatch = channelUrl.match(/youtube\.com\/@([a-zA-Z0-9_-]+)/);
-      const channelHandle = channelHandleMatch ? channelHandleMatch[1] : null;
-      if (!channelHandle) {
-        throw new Error('Invalid channel URL');
-      }
-
-      // Fetch channel directly by handle
-      let attempt = 0;
-      const maxAttempts = 3;
-      let ch = null;
-      let chErr = null;
-
-      while (attempt < maxAttempts) {
-        const { data, error } = await supabase
+        // Check if channel exists in database
+        const { data, error: dbError } = await supabase
           .from('yt_channels')
-          .select('*')
-          .eq('handle', `@${channelHandle}`)
-          .single();
-        ch = data;
-        chErr = error;
-        if (!chErr || ch) break;
-        attempt++;
-        await new Promise((r) => setTimeout(r, 2000 * attempt)); // Exponential backoff
-        console.log(`Retry attempt ${attempt} for handle @${channelHandle}`);
+          .select(`
+            id,
+            handle,
+            name,
+            description,
+            profile_image,
+            banner_img,
+            subscribers,
+            videos_count,
+            views,
+            created_date,
+            location,
+            url
+          `)
+          .eq('handle', handle)
+          .maybeSingle();
+
+        if (dbError) throw dbError;
+
+        console.log('Fetched channel:', data); // Debug channel data
+
+        if (data) {
+          setChannel(data);
+          return;
+        }
+
+        // If not found, trigger channel collection
+        const response = await fetch(
+          `${SUPABASE_URL}/functions/v1/collection_webhook`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ url: channelUrl }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to fetch channel');
+        }
+
+        const { channel: newChannel } = await response.json();
+        console.log('New channel from webhook:', newChannel); // Debug webhook response
+        setChannel(newChannel);
+
+      } catch (err: any) {
+        console.error('Channel fetch error:', err);
+        setError(err.message || 'Failed to load channel');
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (chErr) throw chErr;
-      if (!ch) throw new Error('Channel not found after retries');
+    fetchChannel();
+  }, [channelUrl]);
 
-      if (isMounted) setChannel(ch);
-    } catch (e: any) {
-      console.error('Channel fetch error:', e);
-      if (isMounted) setError(e.message || 'Unexpected error');
-    } finally {
-      if (isMounted) setLoading(false);
-    }
-  })();
-  return () => { isMounted = false; };
-}, [channelUrl]);
-
-  // ─── Collect Videos Handler ────────────────────────────────────
+  // Collect videos handler
   const collectVideos = async () => {
-    setVideos([]);
-    setVideosError(null);
+    if (!channel) return;
+    
     setLoadingVideos(true);
+    setVideosError(null);
 
     try {
-      const triggerRes = await fetch(
+      const response = await fetch(
         `${SUPABASE_URL}/functions/v1/trigger_videos-api`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
-          body: JSON.stringify({ url: channelUrl.replace(/\/about$/, '') }),
+          body: JSON.stringify({ 
+            url: channelUrl,
+            channelId: channel.id,
+            channelHandle: channel.handle
+          }),
         }
       );
-      const { snapshot_id: vidSnapshot } = await triggerRes.json();
-      if (!vidSnapshot) throw new Error('Failed to trigger video job');
 
-      for (let i = 0; i < 60; i++) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to trigger video collection');
+      }
+
+      const { snapshot_id } = await response.json();
+      
+      let attempts = 0;
+      while (attempts < 30) {
         await new Promise(r => setTimeout(r, 2000));
         const { data: job } = await supabase
           .from('scrape_jobs')
           .select('status')
-          .eq('id', vidSnapshot)
+          .eq('id', snapshot_id)
           .single();
+
         if (job?.status === 'ready') break;
-        if (job?.status === 'failed') throw new Error('Video scrape failed');
+        if (job?.status === 'failed') throw new Error('Video collection failed');
+        attempts++;
       }
 
-      const { data: vids, error: vidsErr } = await supabase
+      const { data: videos, error: videosError } = await supabase
         .from('yt_videos')
-        .select('id, title, preview_image, views, likes, date_posted')
+        .select('*')
         .eq('youtuber_id', channel.id)
         .order('date_posted', { ascending: false });
-      if (vidsErr) throw vidsErr;
-      setVideos(vids || []);
-    } catch (e: any) {
-      console.error(e);
-      setVideosError(e.message);
+
+      if (videosError) throw videosError;
+      console.log('Fetched videos:', videos); // Debug video data
+      setVideos(videos || []);
+
+    } catch (err: any) {
+      console.error('Video collection error:', err);
+      setVideosError(err.message || 'Failed to collect videos');
     } finally {
       setLoadingVideos(false);
     }
   };
 
-  // ─── Render Loading / Error ─────────────────────────────────────
+  // Render loading state
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
-        {longWait && (
-          <Text style={styles.longWaitText}>
-            Still fetching channel… this can take up to a minute.
-          </Text>
-        )}
       </View>
     );
   }
+
+  // Render error state
   if (error) {
     return (
-      <View style={styles.padding}>
+      <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
+
+  // Render no channel state
   if (!channel) {
     return (
-      <View style={styles.padding}>
-        <Text>No channel data found.</Text>
+      <View style={styles.center}>
+        <Text>No channel data available</Text>
       </View>
     );
   }
 
-  // ─── Compute Stats ─────────────────────────────────────────────
-  const totalViews = `${(channel.views / 1_000_000).toFixed(1)}M`;
-  const joinedYear = new Date(channel.created_date).getFullYear();
-  const location   = channel.location ?? 'Unknown';
+  // Render video item
+  const renderVideoItem = ({ item }: ListRenderItemInfo<any>) => (
+    <View style={styles.videoItem}>
+      <Image
+        source={{ uri: item.preview_image || 'https://placehold.co/120x80' }}
+        style={styles.videoThumb}
+      />
+      <View style={styles.videoMeta}>
+        <Text numberOfLines={2} style={styles.videoTitle}>
+          {item.title}
+        </Text>
+        <Text style={styles.videoStats}>
+          {item.views ? item.views.toLocaleString() : 'N/A'} views • {item.likes ? item.likes.toLocaleString() : 'N/A'} likes
+        </Text>
+        <Text style={styles.videoDate}>
+          {item.date_posted ? new Date(item.date_posted).toLocaleDateString() : 'N/A'}
+        </Text>
+      </View>
+    </View>
+  );
 
-  // ─── List Header ──────────────────────────────────────────────
+  // Render header
   const renderHeader = () => (
     <>
       <Image
-        source={{ uri: channel.banner_img }}
+        source={{ uri: channel.banner_img || 'https://placehold.co/600x200' }}
         style={styles.banner}
-        resizeMode="cover"
+        resizeMode="cover" // Ensure banner covers the area
       />
       <View style={styles.profileRow}>
         <Image
@@ -179,76 +235,71 @@ export default function Youtube({ route }: Props) {
         <Text style={styles.channelName}>{channel.name}</Text>
         <Text style={styles.channelHandle}>{channel.handle}</Text>
         <Text style={styles.subsText}>
-          {channel.subscribers.toLocaleString()} subscribers • {channel.videos_count} videos
+          {channel.subscribers?.toLocaleString()} subscribers • {channel.videos_count} videos
         </Text>
       </View>
+      
       <View style={styles.sectionPadding}>
         <Text style={styles.sectionTitle}>About</Text>
-        <Text style={styles.aboutText}>{channel.Description}</Text>
+        <Text style={styles.aboutText}>
+          {channel.description || 'No description available'}
+        </Text>
       </View>
+      
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{totalViews}</Text>
+          <Text style={styles.statValue}>
+            {channel.views ? `${(channel.views / 1000000).toFixed(1)}M` : 'N/A'}
+          </Text>
           <Text style={styles.statLabel}>Total Views</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{joinedYear}</Text>
+          <Text style={styles.statValue}>
+            {channel.created_date ? new Date(channel.created_date).getFullYear() : 'N/A'}
+          </Text>
           <Text style={styles.statLabel}>Joined</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{location}</Text>
+          <Text style={styles.statValue}>
+            {channel.location || 'N/A'}
+          </Text>
           <Text style={styles.statLabel}>Location</Text>
         </View>
       </View>
+      
       <TouchableOpacity
         style={styles.collectBtn}
         onPress={collectVideos}
         disabled={loadingVideos}
       >
         <Text style={styles.collectBtnText}>
-          {loadingVideos ? 'Collecting…' : 'Collect Videos'}
+          {loadingVideos ? 'Collecting Videos...' : 'Collect Videos'}
         </Text>
       </TouchableOpacity>
+      
       {videosError && (
         <Text style={styles.errorText}>{videosError}</Text>
       )}
     </>
   );
 
-  // ─── Render Video Item ────────────────────────────────────────
-  const renderVideo = ({ item }: ListRenderItemInfo<any>) => (
-    <View style={styles.videoItem}>
-      <Image
-        source={{ uri: item.preview_image }}
-        style={styles.videoThumb}
-      />
-      <View style={styles.videoMeta}>
-        <Text numberOfLines={2} style={styles.videoTitle}>
-          {item.title}
-        </Text>
-        <Text style={styles.videoStats}>
-          {item.views.toLocaleString()} views • {item.likes.toLocaleString()} likes
-        </Text>
-        <Text style={styles.videoDate}>
-          {new Date(item.date_posted).toLocaleDateString()}
-        </Text>
-      </View>
-    </View>
-  );
-
   return (
     <FlatList
       data={videos}
-      keyExtractor={(v) => v.id}
+      renderItem={renderVideoItem}
       ListHeaderComponent={renderHeader}
-      renderItem={renderVideo}
-      contentContainerStyle={{ paddingBottom: 32 }}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={styles.container}
     />
   );
 }
 
-const { width } = Dimensions.get('screen');
+// Styles remain unchanged
 const styles = StyleSheet.create({
+  container: {
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+  },
   center: {
     flex: 1, justifyContent: 'center', alignItems: 'center'
   },
