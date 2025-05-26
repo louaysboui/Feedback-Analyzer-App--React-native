@@ -299,3 +299,14 @@ entrypoint = "./functions/trigger_videos-api/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/trigger_videos-api/*.html" ]
+
+[functions.analyze_comments]
+enabled = true
+verify_jwt = true
+import_map = "./functions/analyze_comments/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/analyze_comments/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/analyze_comments/*.html" ]

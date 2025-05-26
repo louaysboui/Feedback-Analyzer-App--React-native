@@ -17,7 +17,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@env';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Youtube'>;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  db: { schema: 'public' } // Explicitly specify schema
+  db: { schema: 'public' }
 });
 
 export default function Youtube({ route }: Props) {
@@ -30,6 +30,10 @@ export default function Youtube({ route }: Props) {
   const [videos, setVideos] = useState<any[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [videosError, setVideosError] = useState<string | null>(null);
+  const [sentiment, setSentiment] = useState<any>(null);
+  const [channelSummary, setChannelSummary] = useState<string | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Fetch channel info
   useEffect(() => {
@@ -68,10 +72,19 @@ export default function Youtube({ route }: Props) {
 
         if (dbError) throw dbError;
 
-        console.log('Fetched channel:', data); // Debug channel data
+        console.log('Fetched channel:', data);
 
         if (data) {
           setChannel(data);
+          // Fetch channel summary
+          const { data: summaryData, error: summaryError } = await supabase
+            .from('yt_channel_summaries')
+            .select('summary')
+            .eq('youtuber_id', data.id)
+            .maybeSingle();
+
+          if (summaryError) console.error('Summary fetch error:', summaryError);
+          setChannelSummary(summaryData?.summary || null);
           return;
         }
 
@@ -94,7 +107,7 @@ export default function Youtube({ route }: Props) {
         }
 
         const { channel: newChannel } = await response.json();
-        console.log('New channel from webhook:', newChannel); // Debug webhook response
+        console.log('New channel from webhook:', newChannel);
         setChannel(newChannel);
 
       } catch (err: any) {
@@ -117,7 +130,7 @@ export default function Youtube({ route }: Props) {
 
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/trigger_videos-api`,
+        `${SUPABASE_URL}/functions/v1/trigger_videos-api`, // Fixed endpoint
         {
           method: 'POST',
           headers: {
@@ -134,7 +147,8 @@ export default function Youtube({ route }: Props) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to trigger video collection');
+        console.error('Video collection response error:', errorData);
+        throw new Error(errorData.message || `Failed to trigger video collection: ${response.status}`);
       }
 
       const { snapshot_id } = await response.json();
@@ -160,7 +174,7 @@ export default function Youtube({ route }: Props) {
         .order('date_posted', { ascending: false });
 
       if (videosError) throw videosError;
-      console.log('Fetched videos:', videos); // Debug video data
+      console.log('Fetched videos:', videos);
       setVideos(videos || []);
 
     } catch (err: any) {
@@ -170,6 +184,55 @@ export default function Youtube({ route }: Props) {
       setLoadingVideos(false);
     }
   };
+
+ // Analyze comments handler
+const analyzeComments = async () => {
+  if (!channel) return;
+
+  setLoadingAnalysis(true);
+  setAnalysisError(null);
+
+  try {
+    // Use the correct channel ID that matches yt_comments.youtuber_id
+    // Adjust this depending on your channel object fields!
+    // Most likely: channel.id is internal DB id, channel.url or channel.youtube_channel_id is YouTube channel ID string
+    const youtuberId = channel.youtube_channel_id || channel.url || channel.id;
+
+    console.log('DEBUG: Sending youtuberId for analysis:', youtuberId);
+
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/analyze_comments`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          channelId: youtuberId,
+          channelHandle: channel.handle,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to analyze comments');
+    }
+
+    const { sentiment, summary } = await response.json();
+    console.log('Sentiment analysis:', sentiment, 'Summary:', summary);
+    setSentiment(sentiment);
+    setChannelSummary(summary);
+
+  } catch (err: any) {
+    console.error('Analysis error:', err);
+    setAnalysisError(err.message || 'Failed to analyze comments');
+  } finally {
+    setLoadingAnalysis(false);
+  }
+};
+
 
   // Render loading state
   if (loading) {
@@ -225,7 +288,7 @@ export default function Youtube({ route }: Props) {
       <Image
         source={{ uri: channel.banner_img || 'https://placehold.co/600x200' }}
         style={styles.banner}
-        resizeMode="cover" // Ensure banner covers the area
+        resizeMode="cover"
       />
       <View style={styles.profileRow}>
         <Image
@@ -246,36 +309,57 @@ export default function Youtube({ route }: Props) {
         </Text>
       </View>
       
-      <View style={styles.statsRow}>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>
-            {channel.views ? `${(channel.views / 1000000).toFixed(1)}M` : 'N/A'}
-          </Text>
-          <Text style={styles.statLabel}>Total Views</Text>
-        </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>
-            {channel.created_date ? new Date(channel.created_date).getFullYear() : 'N/A'}
-          </Text>
-          <Text style={styles.statLabel}>Joined</Text>
-        </View>
-        <View style={styles.stat}>
-          <Text style={styles.statValue}>
-            {channel.location || 'N/A'}
-          </Text>
-          <Text style={styles.statLabel}>Location</Text>
-        </View>
+      <View style={styles.sectionPadding}>
+        <Text style={styles.sectionTitle}>AI-Generated Channel Summary</Text>
+        <Text style={styles.aboutText}>
+          {channelSummary || 'No summary available. Click "Analyze Comments" to generate one.'}
+        </Text>
       </View>
       
-      <TouchableOpacity
-        style={styles.collectBtn}
-        onPress={collectVideos}
-        disabled={loadingVideos}
-      >
-        <Text style={styles.collectBtnText}>
-          {loadingVideos ? 'Collecting Videos...' : 'Collect Videos'}
-        </Text>
-      </TouchableOpacity>
+      <View style={styles.sectionPadding}>
+        <Text style={styles.sectionTitle}>Sentiment Analysis</Text>
+        {sentiment ? (
+          <View>
+            <Text style={styles.aboutText}>
+              Positive: {sentiment.positive_percentage.toFixed(2)}%
+            </Text>
+            <Text style={styles.aboutText}>
+              Negative: {sentiment.negative_percentage.toFixed(2)}%
+            </Text>
+            <Text style={styles.aboutText}>
+              Average Score: {sentiment.average_score.toFixed(2)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.aboutText}>
+            No sentiment analysis available. Click "Analyze Comments" to generate.
+          </Text>
+        )}
+        {analysisError && (
+          <Text style={styles.errorText}>{analysisError}</Text>
+        )}
+      </View>
+      
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={collectVideos}
+          disabled={loadingVideos}
+        >
+          <Text style={styles.buttonText}>
+            {loadingVideos ? 'Collecting Videos...' : 'Collect Videos'}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={analyzeComments}
+          disabled={loadingAnalysis}
+        >
+          <Text style={styles.buttonText}>
+            {loadingAnalysis ? 'Analyzing...' : 'Analyze Comments'}
+          </Text>
+        </TouchableOpacity>
+      </View>
       
       {videosError && (
         <Text style={styles.errorText}>{videosError}</Text>
@@ -294,7 +378,6 @@ export default function Youtube({ route }: Props) {
   );
 }
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     paddingBottom: 16,
@@ -305,9 +388,6 @@ const styles = StyleSheet.create({
   },
   padding: {
     padding: 16
-  },
-  longWaitText: {
-    marginTop: 12, color: 'gray', textAlign: 'center'
   },
   errorText: {
     color: 'red', textAlign: 'center', paddingHorizontal: 16
@@ -323,46 +403,39 @@ const styles = StyleSheet.create({
     borderColor: 'white'
   },
   channelName: {
-    fontSize: 20, fontWeight: 'bold', marginTop: 10
+    fontSize: 20, fontWeight: 'bold', marginTop: 6
   },
   channelHandle: {
-    color: 'gray'
+    color: '#333', fontSize: 16
   },
   subsText: {
-    color: 'gray', marginTop: 5
+    color: '#333', marginTop: 5
   },
   sectionPadding: {
     padding: 16
   },
   sectionTitle: {
-    fontSize: 16, fontWeight: 'bold'
+    fontSize: 18, fontWeight: 'bold'
   },
   aboutText: {
-    color: 'gray', marginTop: 5
+    color: '#333', marginTop: 5, fontSize: 16
   },
-  statsRow: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    paddingVertical: 16, borderTopWidth: 1, borderBottomWidth: 1,
-    borderColor: '#eee'
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 16
   },
-  stat: {
-    alignItems: 'center'
-  },
-  statValue: {
-    fontSize: 16, fontWeight: 'bold'
-  },
-  statLabel: {
-    color: 'gray'
-  },
-  collectBtn: {
-    backgroundColor: '#6C63FF',
-    margin: 16,
-    borderRadius: 24,
+  button: {
+    backgroundColor: '#6200EE',
     paddingVertical: 12,
-    alignItems: 'center'
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    alignItems: 'center',
+    flex: 1,
+    marginHorizontal: 8
   },
-  collectBtnText: {
-    color: 'white', fontWeight: '600'
+  buttonText: {
+    color: 'white', fontWeight: '600', fontSize: 16
   },
   videoItem: {
     flexDirection: 'row',
@@ -378,19 +451,18 @@ const styles = StyleSheet.create({
   },
   videoMeta: {
     flex: 1,
-    padding: 8
+    padding: 10
   },
   videoTitle: {
-    fontWeight: '500'
+    fontWeight: '500', fontSize: 16
   },
   videoStats: {
-    color: 'gray',
-    fontSize: 12,
-    marginTop: 4
+    color: '#333',
+    fontSize: 14,
+    marginVertical: 4
   },
   videoDate: {
-    color: 'gray',
-    fontSize: 12,
-    marginTop: 2
+    color: '#333',
+    fontSize: 14
   },
 });

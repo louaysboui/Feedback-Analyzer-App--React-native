@@ -2,14 +2,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-const YOUTUBE_API_KEY = "AIzaSyB5UjPUmWN-k8kjE49gXtRcwVR1IlTM98s";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!; // Use ANON_KEY for public access
+const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY")!;
 
 Deno.serve(async (req: Request) => {
   try {
     const { channelId, channelHandle, url } = await req.json();
     if (!channelId || !channelHandle) {
-      return new Response(JSON.stringify({ status: "error", message: "Missing channelId or channelHandle" }), {
+      return new Response(JSON.stringify({ status: "error", message: "Missing channelId or handle" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
@@ -17,12 +17,13 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Step 1: Fetch uploads playlist and branding settings
+    // Step 1: Fetch channels playlist & branding settings
     const channelRes = await fetch(
       `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,brandingSettings&id=${channelId}&key=${YOUTUBE_API_KEY}`
     );
     const channelData = await channelRes.json();
-    const uploadsPlaylistId = channelData?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    const uploadsPlaylistId =
+      channelData?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
 
     if (!uploadsPlaylistId) {
       return new Response(JSON.stringify({ status: "error", message: "Uploads playlist not found" }), {
@@ -44,9 +45,9 @@ Deno.serve(async (req: Request) => {
     const channelObject = {
       id: channelId,
       handle: `@${channelHandle}`,
-      name: snippet?.title || null,
+      name: snippet?.title || '',
       description: snippet?.description || null,
-      profile_image: snippet?.thumbnails?.high?.url || snippet?.thumbnails?.default?.url || null,
+      profile_image: snippet?.thumbnails?.default?.url || null,
       banner_img: metaData?.items?.[0]?.brandingSettings?.image?.bannerExternalUrl || null,
       created_date: snippet?.publishedAt || null,
       url: url,
@@ -76,20 +77,20 @@ Deno.serve(async (req: Request) => {
     const videosData = await videosRes.json();
 
     // Step 5: Fetch video statistics
-    const videoIds = videosData.items.map((item: any) => item.snippet.resourceId.videoId).join(",");
+    const videoIds = videosData.items.map((item: any) => item.snippet.resourceId?.videoId).join(",");
     const statsRes = await fetch(
       `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${YOUTUBE_API_KEY}`
     );
     const statsData = await statsRes.json();
 
-    const videoItems = videosData.items.map((item: any, index: number) => {
-      const { title, publishedAt, thumbnails, resourceId, description } = item.snippet;
-      const stats = statsData.items.find((stat: any) => stat.id === resourceId.videoId)?.statistics || {};
+    const videoItems = videosData?.items?.map((item: any) => {
+      const { title, publishedAt, thumbnails, description } = item.snippet;
+      const stats = statsData.items.find((stat: any) => stat.id === item.snippet.resourceId?.videoId)?.statistics || {};
       return {
-        id: resourceId.videoId,
-        url: `https://www.youtube.com/watch?v=${resourceId.videoId}`,
+        id: item.snippet.resourceId?.videoId,
+        url: `https://www.youtube.com/watch?v=${item.snippet.resourceId?.videoId}`,
         youtuber_id: channelId,
-        title,
+        title: title || '',
         description: description || null,
         date_posted: publishedAt || null,
         preview_image: thumbnails?.high?.url || thumbnails?.default?.url || null,
@@ -113,7 +114,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    return new Response(JSON.stringify({ status: "success", count: videoItems.length }), {
+    // Step 7: Create scrape job
+    const { data: jobData, error: jobError } = await supabase
+      .from("scrape_jobs")
+      .insert([{ status: "ready" }])
+      .select("id")
+      .single();
+
+    if (jobError) {
+      console.error("Job insert error:", jobError);
+      return new Response(JSON.stringify({ status: "error", message: jobError.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ status: "success", count: videoItems.length, snapshot_id: jobData.id }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
