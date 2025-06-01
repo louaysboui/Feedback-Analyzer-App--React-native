@@ -108,4 +108,41 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  section: {
+    marginTop: 24,
+    marginBottom: 24,
+    padding: 12,
+    backgroundColor: '#f7f7f7',
+    borderRadius: 8,
+  },
+    deleteButton: {
+    backgroundColor: '#FF0000',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    marginBottom: 10,
+    alignSelf: 'flex-end',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 15,
+  },
+   selectedHistoryItem: {
+    backgroundColor: '#e0e0e0',
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ccc',
+    marginRight: 12,
+  },
+  selectedIcon: {
+    marginLeft: 8,
+    color: '#2196F3',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
 });

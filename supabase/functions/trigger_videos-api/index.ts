@@ -1,308 +1,246 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const YOUTUBE_API_KEY = Deno.env.get("YOUTUBE_API_KEY")!;
 
-interface RequestPayload {
-  channelId?: string;
-  channelHandle: string;
-  url: string;
-}
-
-async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
+async function fetchWithRetry(url: string, retries: number = 3, delay: number = 1000): Promise<Response> {
+  for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      const res = await fetch(url);
-      if (!res.ok && res.status === 429) {
-        console.warn(`Rate limit hit, retrying (${i + 1}/${retries})...`);
-        await new Promise(r => setTimeout(r, delay * (i + 1)));
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      console.log(`Attempt ${attempt + 1} for ${url}: Status ${response.status}`);
+      if (response.ok) return response;
+      if (response.status === 429) {
+        console.warn(`Rate limit hit, retrying (${attempt + 1}/${retries})...`);
+        await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
         continue;
       }
-      return res;
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
     } catch (err) {
-      if (i === retries - 1) throw err;
-      console.warn(`Fetch error, retrying (${i + 1}/${retries}):`, err);
-      await new Promise(r => setTimeout(r, delay * (i + 1)));
+      console.error(`Attempt ${attempt + 1} failed for ${url}:`, err);
+      if (attempt === retries - 1) throw err;
+      await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
     }
   }
   throw new Error("Max retries exceeded");
 }
 
-async function generateUUID(supabase: any): Promise<string> {
-  try {
-    console.log("Attempting to call public.uuid_generate_v4");
-    const { data, error } = await supabase.rpc('uuid_generate_v4');
-    if (error) {
-      console.error("UUID generation error:", error);
-      throw new Error(`Failed to generate UUID: ${error.message}`);
-    }
-    if (!data) {
-      console.error("UUID generation returned no data");
-      throw new Error("Failed to generate UUID: No data returned");
-    }
-    console.log("Generated UUID:", data);
-    return data;
-  } catch (err) {
-    const errMsg = (err instanceof Error && err.message) ? err.message : String(err);
-    console.warn("Falling back to crypto UUID due to error:", errMsg);
-    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-    console.log("Generated fallback UUID:", uuid);
-    return uuid;
-  }
-}
-
 Deno.serve(async (req: Request) => {
   try {
-    const payload = await req.json() as RequestPayload;
-    console.log("Received payload:", payload);
-    const { channelId, channelHandle, url } = payload;
-
-    if (!channelHandle || !url) {
-      console.error("Missing required fields", { channelId, channelHandle, url });
-      return new Response(JSON.stringify({ status: "error", message: "Missing channelHandle or url" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
-    let validatedChannelId = channelId;
-
-    if (!validatedChannelId) {
-      console.log("Fetching channel ID from YouTube API for handle:", channelHandle);
-      const youtubeResponse = await fetchWithRetry(
-        `https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${channelHandle}&key=${YOUTUBE_API_KEY}`
+    const { url, channelId, channelHandle } = await req.json();
+    if (!url) {
+      return new Response(
+        JSON.stringify({ status: "error", message: "Missing URL" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
       );
-      const youtubeData = await youtubeResponse.json();
-      if (!youtubeData.items?.length) {
-        console.error("YouTube API: Channel not found", { channelHandle });
-        throw new Error(`Channel not found on YouTube: ${channelHandle}`);
-      }
-      validatedChannelId = youtubeData.items[0].id;
-      console.log("Fetched YouTube channel ID:", validatedChannelId);
-    }
-
-    if (
-      !validatedChannelId ||
-      !validatedChannelId.startsWith('UC') ||
-      validatedChannelId.length < 20
-    ) {
-      console.error("Invalid channelId format:", validatedChannelId);
-      return new Response(JSON.stringify({ status: "error", message: "Invalid channelId format" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Check for existing channel
-    const { data: existingChannel, error: fetchError } = await supabase
-      .from("yt_channels")
-      .select("id")
-      .eq("youtube_channel_id", validatedChannelId)
-      .single();
-
-    if (fetchError && fetchError.code !== "PGRST116") {
-      console.error("Error fetching existing channel:", fetchError);
-      throw fetchError;
+    // Extract channel handle from URL if not provided
+    const channelHandleMatch = url.match(/youtube\.com\/(@[a-zA-Z0-9_-]+)/);
+    const handle = channelHandle || (channelHandleMatch ? channelHandleMatch[1] : null);
+    if (!handle) {
+      throw new Error("Could not extract channel handle from URL");
     }
 
-    if (existingChannel) {
-      // Delete related scrape_jobs to avoid foreign key issues
-      const { error: deleteError } = await supabase
-        .from("scrape_jobs")
-        .delete()
-        .eq("channel_id", existingChannel.id);
+    // 1. Check if channel exists
+    const { data: existingChannel } = await supabase
+      .from("yt_channels")
+      .select("*")
+      .eq("handle", handle)
+      .maybeSingle();
 
-      if (deleteError) {
-        console.error("Error deleting scrape_jobs:", deleteError);
-        throw deleteError;
+    if (existingChannel && !channelId) {
+      return new Response(
+        JSON.stringify({ 
+          status: "success", 
+          channel: existingChannel,
+          message: "Channel already exists" 
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2. Fetch channel data from YouTube API if channelId is not provided
+    let finalChannelId = channelId;
+    let channelToInsert = null;
+
+    if (!channelId) {
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(handle)}&key=${YOUTUBE_API_KEY}`;
+      const searchRes = await fetchWithRetry(searchUrl);
+      const searchData = await searchRes.json();
+      if (!searchData.items || searchData.items.length === 0) {
+        throw new Error("Channel not found via YouTube API");
       }
-      console.log("Deleted existing scrape_jobs for channel:", existingChannel.id);
-    }
+      finalChannelId = searchData.items[0].id.channelId;
 
-    // Get upload playlist ID
-    const channelRes = await fetchWithRetry(
-      `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,brandingSettings&id=${validatedChannelId}&key=${YOUTUBE_API_KEY}`
-    );
-    const channelData = await channelRes.json();
-    if (!channelData.items?.length) {
-      console.error("YouTube API: Channel not found", { channelId: validatedChannelId });
-      throw new Error(`Channel not found on YouTube: ${validatedChannelId}`);
-    }
-    const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
+      const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&id=${finalChannelId}&key=${YOUTUBE_API_KEY}`;
+      const channelRes = await fetchWithRetry(channelUrl);
+      const channelData = await channelRes.json();
+      if (!channelData.items || channelData.items.length === 0) {
+        throw new Error("Channel details not found");
+      }
+      const channelInfo = channelData.items[0];
 
-    if (!uploadsPlaylistId) {
-      console.error("YouTube API: Uploads playlist not found", { channelId: validatedChannelId });
-      return new Response(JSON.stringify({ status: "error", message: "Uploads playlist not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+      const bannerUrl = channelInfo.brandingSettings?.image?.bannerExternalUrl
+        ? `${channelInfo.brandingSettings.image.bannerExternalUrl}=w2120-fcrop64=1,00005a57ffffa5a1`
+        : null;
 
-    // Get metadata
-    const metaRes = await fetchWithRetry(
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${validatedChannelId}&key=${YOUTUBE_API_KEY}`
-    );
-    const metaData = await metaRes.json();
-    const snippet = metaData.items[0].snippet;
-
-    // Generate UUID for new channel
-    const channelIdUUID = existingChannel ? existingChannel.id : await generateUUID(supabase);
-
-    const channelObject = {
-      id: channelIdUUID,
-      youtube_channel_id: validatedChannelId,
-      handle: `@${channelHandle}`,
-      name: snippet.title || '',
-      description: snippet.description || null,
-      profile_image: snippet.thumbnails?.default?.url || null,
-      banner_img: metaData.items[0].brandingSettings?.image?.bannerExternalUrl || null,
-      created_date: snippet.publishedAt || null,
-      url,
-      location: snippet.country || null,
-      subscribers: parseInt(metaData.items[0].statistics.subscriberCount || "0"),
-      videos_count: parseInt(metaData.items[0].statistics.videoCount || "0"),
-      views: parseInt(metaData.items[0].statistics.viewCount || "0"),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    console.log("Inserting/updating channel:", channelObject);
-
-    // Insert/update channel
-    const { error: chInsertErr } = await supabase
-      .from("yt_channels")
-      .upsert([channelObject], { onConflict: "youtube_channel_id", ignoreDuplicates: false });
-
-    if (chInsertErr) {
-      console.error("Channel insert error:", chInsertErr.message);
-      throw chInsertErr;
-    }
-
-    // Get latest 20 videos
-    const videosRes = await fetchWithRetry(
-      `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=20&key=${YOUTUBE_API_KEY}`
-    );
-    const videosData = await videosRes.json();
-
-    const videoIds = videosData.items.map((item: any) => item.snippet.resourceId?.videoId).join(",");
-
-    const statsRes = await fetchWithRetry(
-      `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${YOUTUBE_API_KEY}`
-    );
-    const statsData = await statsRes.json();
-
-    const videoItems = videosData.items.map((item: any) => {
-      const videoId = item.snippet.resourceId.videoId;
-      const stats = statsData.items.find((stat: any) => stat.id === videoId)?.statistics || {};
-      const { title, publishedAt, thumbnails, description } = item.snippet;
-
-      return {
-        id: videoId,
-        url: `https://www.youtube.com/watch?v=${videoId}`,
-        youtuber_id: channelObject.id,
-        title,
-        description: description || null,
-        date_posted: publishedAt || null,
-        preview_image: thumbnails?.high?.url || thumbnails?.default?.url || null,
-        views: parseInt(stats.viewCount || "0"),
-        likes: parseInt(stats.likeCount || "0"),
-        num_comments: parseInt(stats.commentCount || "0"),
-        created_at: new Date().toISOString(),
+      channelToInsert = {
+        id: finalChannelId,
+        youtube_channel_id: finalChannelId,
+        handle: handle,
+        name: channelInfo.snippet.title,
+        description: channelInfo.snippet.description || null,
+        profile_image: channelInfo.snippet.thumbnails.high.url || null,
+        banner_img: bannerUrl,
+        subscribers: parseInt(channelInfo.statistics.subscriberCount || "0"),
+        videos_count: parseInt(channelInfo.statistics.videoCount || "0"),
+        views: parseInt(channelInfo.statistics.viewCount || "0"),
+        created_date: channelInfo.snippet.publishedAt || null,
+        location: channelInfo.snippet.country || null,
+        url: url,
       };
-    });
 
-    console.log("Inserting videos:", videoItems.length);
-
-    // Insert videos
-    const { error: videoInsertErr } = await supabase
-      .from("yt_videos")
-      .upsert(videoItems, { onConflict: "id" });
-
-    if (videoInsertErr) {
-      console.error("Video insert error:", videoInsertErr.message);
-      throw videoInsertErr;
+      const { error: insertError } = await supabase
+  .from("yt_channels")
+  .upsert([channelToInsert], { onConflict: "id" })// or "youtube_channel_id" if that’s more appropriate
+      if (insertError) throw insertError;
     }
 
-    // Fetch comments for each video
-    let commentCount = 0;
-    for (const video of videoItems) {
-      try {
-        const commentRes = await fetchWithRetry(
-          `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${video.id}&maxResults=50&textFormat=plainText&key=${YOUTUBE_API_KEY}`
+    // 3. Collect videos if channelId is provided
+    if (channelId || finalChannelId) {
+      const scrapeJobId = crypto.randomUUID();
+      const { error: jobError } = await supabase
+        .from("scrape_jobs")
+        .insert([{ id: scrapeJobId, status: "pending", channel_id: channelId || finalChannelId }]);
+      if (jobError) throw jobError;
+
+      const videosUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId || finalChannelId}&maxResults=50&type=video&key=${YOUTUBE_API_KEY}`;
+      const videosRes = await fetchWithRetry(videosUrl);
+      const videosData = await videosRes.json();
+      if (!videosData.items || videosData.items.length === 0) {
+        await supabase.from("scrape_jobs").update({ status: "ready" }).eq("id", scrapeJobId);
+        return new Response(
+          JSON.stringify({ 
+            status: "success", 
+            channel: channelToInsert || existingChannel,
+            snapshot_id: scrapeJobId,
+            count: 0
+          }),
+          { headers: { "Content-Type": "application/json" } }
         );
-        const commentData = await commentRes.json();
-
-        if (!commentData.items?.length) {
-          console.log(`No comments for video ${video.id}`);
-          continue;
-        }
-
-        const commentItems = commentData.items.map((c: any) => {
-          const snippet = c.snippet.topLevelComment.snippet;
-          return {
-            id: c.id,
-            video_id: video.id,
-            youtuber_id: channelObject.id,
-            text: snippet.textDisplay,
-            created_at: new Date(snippet.publishedAt).toISOString(),
-            updated_at: new Date(snippet.updatedAt || snippet.publishedAt).toISOString(),
-          };
-        });
-
-        const { error: commentInsertErr } = await supabase
-          .from("yt_comments")
-          .upsert(commentItems, { onConflict: "id" });
-
-        if (commentInsertErr) {
-          console.error(`Comment insert error for video ${video.id}:`, commentInsertErr.message);
-          continue;
-        }
-
-        commentCount += commentItems.length;
-        console.log(`Inserted ${commentItems.length} comments for video ${video.id}`);
-      } catch (err) {
-        console.error(`Error fetching comments for video ${video.id}:`, err);
       }
+
+      // Fetch video statistics
+      const videoIds = videosData.items.map((item: any) => item.id.videoId).join(',');
+      const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${YOUTUBE_API_KEY}`;
+      const statsRes = await fetchWithRetry(statsUrl);
+      const statsData = await statsRes.json();
+      if (!statsData.items) {
+        console.error("No statistics data returned for video IDs:", videoIds);
+      }
+
+      const videos = videosData.items.map((item: any) => {
+        const stats = statsData.items ? statsData.items.find((stat: any) => stat.id === item.id.videoId) : null;
+        return {
+          id: item.id.videoId,
+          youtuber_id: channelId || finalChannelId,
+          title: item.snippet.title,
+          description: item.snippet.description || null,
+          preview_image: item.snippet.thumbnails.high.url || null,
+          date_posted: item.snippet.publishedAt || null,
+          url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+          views: stats ? parseInt(stats.statistics.viewCount || "0") : 0,
+          likes: stats ? parseInt(stats.statistics.likeCount || "0") : 0,
+        };
+      });
+
+      const { error: videosError } = await supabase
+        .from("yt_videos")
+        .upsert(videos, { onConflict: "id" });
+      if (videosError) {
+        console.error("Video upsert error:", videosError);
+        throw videosError;
+      }
+
+      // Collect comments for each video (limit to first 5 videos to manage quota)
+      let totalComments = 0;
+      for (const video of videos.slice(0, 5)) {
+        try {
+          console.log(`Fetching comments for video ${video.id} (youtuber_id: ${video.youtuber_id})`);
+          const commentsUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${video.id}&maxResults=50&key=${YOUTUBE_API_KEY}`;
+          const commentsRes = await fetchWithRetry(commentsUrl);
+          const commentsData = await commentsRes.json();
+
+          if (commentsData.error) {
+            console.error(`YouTube API error for video ${video.id}:`, commentsData.error.message);
+            continue;
+          }
+
+          if (commentsData.items && commentsData.items.length > 0) {
+            const comments = commentsData.items.map((item: any) => ({
+              id: item.id,
+              video_id: video.id,
+              youtuber_id: video.youtuber_id,
+              text: item.snippet.topLevelComment.snippet.textDisplay,
+              author: item.snippet.topLevelComment.snippet.authorDisplayName,
+              // Only include published_at if column exists
+              published_at: item.snippet.topLevelComment.snippet.publishedAt || null,
+            }));
+
+            const { error: commentsError } = await supabase
+              .from("yt_comments")
+              .upsert(comments, { onConflict: "id" });
+            if (commentsError) {
+              console.error(`Failed to insert comments for video ${video.id}:`, commentsError.message, commentsError.details);
+            } else {
+              console.log(`Inserted ${comments.length} comments for video ${video.id}`);
+              totalComments += comments.length;
+            }
+          } else {
+            console.log(`No comments found for video ${video.id}`);
+          }
+        } catch (err: any) {
+          console.error(`Error fetching comments for video ${video.id}:`, err.message);
+        }
+      }
+
+      await supabase.from("scrape_jobs").update({ status: "ready" }).eq("id", scrapeJobId);
+
+      return new Response(
+        JSON.stringify({ 
+          status: "success", 
+          channel: channelToInsert || existingChannel,
+          snapshot_id: scrapeJobId,
+          count: videos.length,
+          comments_count: totalComments
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    // Create scrape job
-    const { data: jobData, error: jobError } = await supabase
-      .from("scrape_jobs")
-      .insert([{ status: commentCount > 0 ? "ready" : "no_comments", channel_id: channelObject.id }])
-      .select("id")
-      .single();
+    return new Response(
+      JSON.stringify({ 
+        status: "success", 
+        channel: channelToInsert || existingChannel 
+      }),
+      { headers: { "Content-Type": "application/json" } }
+    );
 
-    if (jobError) {
-      console.error("Scrape job insert error:", jobError.message);
-      throw jobError;
-    }
-
-    return new Response(JSON.stringify({
-      status: "success",
-      count: videoItems.length,
-      comment_count: commentCount,
-      snapshot_id: jobData.id,
-      channel: channelObject,
-    }), {
-      headers: { "Content-Type": "application/json" },
-    });
   } catch (err: any) {
-    console.error("Unexpected error in trigger_videos-api:", {
-      message: err.message,
-      stack: err.stack,
-      payload: await req.json().catch(() => ({})),
-    });
-    return new Response(JSON.stringify({ status: "error", message: err.message || "Server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("Error in trigger_videos-api:", err.message, err.stack);
+    return new Response(
+      JSON.stringify({ 
+        status: "error", 
+        message: err.message || "Unknown error" 
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 });

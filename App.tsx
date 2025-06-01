@@ -1,4 +1,4 @@
-import * as React from 'react';
+import React from 'react';
 import {
   NavigationContainer,
   NavigationContainerRef,
@@ -14,6 +14,7 @@ import Bottombar from './src/components/Bottombar';
 import Register from './src/screens/RegisterScreen/Register';
 import YoutubeHome from './src/screens/YoutubeHomeScreen/YoutubeHome';
 import Youtube from './src/screens/YoutubeScreen/Youtube';
+import VideoDetailsScreen from './src/screens/VideoDetailsScreen/VideoDetailsScreen'; // Adjust path
 import Profile from './src/screens/ProfileScreen/Profile';
 import About from './src/screens/AboutScreen/About';
 import { AuthProvider, useAuth } from './src/components/AuthContext';
@@ -43,13 +44,14 @@ export type RootStackParamList = {
   Tabs: undefined;
   Bottombar: undefined;
   YoutubeHome: { channelUrl: string } | undefined;
-  Youtube: { channelUrl: string; snapshotId: string };
+  Youtube: { channelUrl: any };
   FavoriteFeedbacks: undefined;
   UsersList: undefined;
   ReclamationsList: undefined;
   EditUser: { userId: string };
   EditReclamation: { reclamationId: string };
-  ResetPassword: { deepLinkUrl?: string }; // Updated to accept deepLinkUrl
+  ResetPassword: { deepLinkUrl?: string };
+  VideoDetails: { video: any; channel: any };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,6 +69,7 @@ const AppContent = () => {
       screens: {
         ResetPassword: 'reset-password',
         Login: 'login',
+        VideoDetails: 'video-details',
       },
     },
   };
@@ -89,6 +92,11 @@ const AppContent = () => {
         navigationRef.current.navigate('ResetPassword', { deepLinkUrl: url });
       } else {
         console.log('Navigation ref not ready');
+      }
+    } else if (url.startsWith('myapp://video-details')) {
+      if (navigationRef.current) {
+        // Parse video and channel from URL if needed
+        navigationRef.current.navigate('VideoDetails', { video: {}, channel: {} });
       }
     }
   };
@@ -136,7 +144,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -149,7 +157,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -162,7 +170,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -172,6 +180,11 @@ const AppContent = () => {
             name="Youtube"
             component={Youtube}
             options={{ headerShown: false }}
+          />
+          <DrawerNavigator.Screen
+            name="VideoDetails"
+            component={VideoDetailsScreen}
+            options={{ headerShown: true }}
           />
           <DrawerNavigator.Screen
             name="Login"
@@ -185,7 +198,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -198,7 +211,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -211,7 +224,7 @@ const AppContent = () => {
               header: (props) => (
                 <CustomHeader
                   {...props}
-                  back={undefined}
+                  back={null}
                   onMenuPress={() => props.navigation.toggleDrawer()}
                 />
               ),
@@ -235,6 +248,7 @@ const AppContent = () => {
         <Stack.Screen name="Register" component={Register} options={{ headerShown: false }} />
         <Stack.Screen name="YoutubeHome" component={YoutubeHome} options={{ headerShown: false }} />
         <Stack.Screen name="Youtube" component={Youtube} options={{ headerShown: false }} />
+        <Stack.Screen name="VideoDetails" component={VideoDetailsScreen} options={{ headerShown: true }} />
         <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>

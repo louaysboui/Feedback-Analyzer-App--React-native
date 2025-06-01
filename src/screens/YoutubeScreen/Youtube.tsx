@@ -8,7 +8,6 @@ import {
   FlatList,
   ListRenderItemInfo,
   StyleSheet,
-  Dimensions,
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -22,7 +21,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 export default function Youtube({ route, navigation }: Props) {
-  const { channelUrl, snapshotId } = route.params;
+  const { channelUrl } = route.params;
 
   // State management
   const [channel, setChannel] = useState<any>(null);
@@ -31,21 +30,14 @@ export default function Youtube({ route, navigation }: Props) {
   const [videos, setVideos] = useState<any[]>([]);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [videosError, setVideosError] = useState<string | null>(null);
-  const [sentiment, setSentiment] = useState<any>(null);
-  const [channelSummary, setChannelSummary] = useState<string | null>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Reset state when channelUrl changes
   useEffect(() => {
     console.log('Channel URL changed:', channelUrl);
     setChannel(null);
     setVideos([]);
-    setSentiment(null);
-    setChannelSummary(null);
     setError(null);
     setVideosError(null);
-    setAnalysisError(null);
     fetchChannel();
   }, [channelUrl]);
 
@@ -96,15 +88,6 @@ export default function Youtube({ route, navigation }: Props) {
 
       if (data) {
         setChannel(data);
-        // Fetch channel summary
-        const { data: summaryData, error: summaryError } = await supabase
-          .from('yt_channel_summaries')
-          .select('summary')
-          .eq('youtuber_id', data.id)
-          .maybeSingle();
-
-        if (summaryError) console.error('Summary fetch error:', summaryError);
-        setChannelSummary(summaryData?.summary || null);
         console.log('Channel loaded from database, buttons should be enabled:', data.youtube_channel_id);
         return;
       }
@@ -146,7 +129,9 @@ export default function Youtube({ route, navigation }: Props) {
     } catch (err: any) {
       console.error('Channel fetch error:', err);
       setError(
-        err.message.includes('Failed to generate UUID')
+        err.message.includes('not-null constraint')
+          ? 'Server error: Invalid data format. Please try again later.'
+          : err.message.includes('Failed to generate UUID')
           ? 'Server error: Failed to generate channel ID. Please try again later.'
           : err.message || 'Failed to load channel'
       );
@@ -194,25 +179,44 @@ export default function Youtube({ route, navigation }: Props) {
       const { snapshot_id, count } = await response.json();
       console.log('Video collection snapshot ID:', snapshot_id, 'Videos collected:', count);
 
+      if (!snapshot_id) {
+        throw new Error('No snapshot ID returned. Video collection failed.');
+      }
+
       let attempts = 0;
-      while (attempts < 30) {
+      const maxAttempts = 10; // 20 seconds max
+      while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 2000));
-        const { data: job } = await supabase
+        const { data: job, error: jobError } = await supabase
           .from('scrape_jobs')
           .select('status')
           .eq('id', snapshot_id)
           .single();
 
-        if (job?.status === 'ready') break;
-        if (job?.status === 'failed') throw new Error('Video collection failed');
+        if (jobError) {
+          console.error('Scrape job error:', jobError);
+          throw jobError;
+        }
+
+        if (job?.status === 'ready') {
+          console.log('Scrape job completed');
+          break;
+        }
+        if (job?.status === 'failed') {
+          throw new Error('Video collection job failed');
+        }
         attempts++;
         console.log('Polling scrape job, attempt:', attempts);
+      }
+
+      if (attempts >= maxAttempts) {
+        throw new Error('Video collection timed out');
       }
 
       const { data: videos, error: videosError } = await supabase
         .from('yt_videos')
         .select('*')
-        .eq('youtuber_id', channel.id)
+        .eq('youtuber_id', channel.youtube_channel_id)
         .order('date_posted', { ascending: false });
 
       if (videosError) throw videosError;
@@ -222,8 +226,8 @@ export default function Youtube({ route, navigation }: Props) {
     } catch (err: any) {
       console.error('Video collection error:', err);
       setVideosError(
-        err.message.includes('foreign key constraint')
-          ? 'Server error: Issue with channel data. Please try again later.'
+        err.message.includes('not-null constraint')
+          ? 'Server error: Invalid video data. Please try again later.'
           : err.message.includes('Failed to generate UUID')
           ? 'Server error: Failed to generate channel ID. Please try again later.'
           : err.message.includes('Channel not found')
@@ -233,65 +237,6 @@ export default function Youtube({ route, navigation }: Props) {
       Alert.alert('Error', videosError || 'Failed to collect videos. Please try again.');
     } finally {
       setLoadingVideos(false);
-    }
-  };
-
-  // Analyze comments handler
-  const analyzeComments = async () => {
-    if (!channel || !channel.youtube_channel_id) {
-      setAnalysisError('Channel ID not available');
-      console.log('Analyze Comments blocked: No channel or youtube_channel_id');
-      Alert.alert('Error', 'Channel not loaded. Please try again.');
-      return;
-    }
-
-    setLoadingAnalysis(true);
-    setAnalysisError(null);
-
-    try {
-      const youtuberId = channel.youtube_channel_id;
-      console.log('Triggering comment analysis for youtuberId:', youtuberId);
-
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/analyze_comments`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({
-            channelId: youtuberId,
-            channelHandle: channel.handle.replace('@', ''),
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Comment analysis error:', errorData);
-        throw new Error(errorData.message || 'Failed to analyze comments');
-      }
-
-      const { sentiment, summary } = await response.json();
-      console.log('Sentiment analysis:', sentiment, 'Summary:', summary);
-      setSentiment(sentiment);
-      setChannelSummary(summary);
-
-    } catch (err: any) {
-      console.error('Analysis error:', err);
-      setAnalysisError(
-        err.message.includes('Failed to generate UUID')
-          ? 'Server error: Failed to generate channel ID. Please try again later.'
-          : err.message.includes('Invalid channelId format')
-          ? 'Invalid YouTube channel ID'
-          : err.message.includes('Channel not found')
-          ? 'Channel not found in database. Please collect videos first.'
-          : err.message || 'Failed to analyze comments'
-      );
-      Alert.alert('Error', analysisError || 'Failed to analyze comments. Please try again.');
-    } finally {
-      setLoadingAnalysis(false);
     }
   };
 
@@ -324,7 +269,19 @@ export default function Youtube({ route, navigation }: Props) {
 
   // Render video item
   const renderVideoItem = ({ item }: ListRenderItemInfo<any>) => (
-    <View style={styles.videoItem}>
+    <TouchableOpacity
+      style={styles.videoItem}
+      onPress={() =>
+        navigation.navigate('VideoDetails', {
+          video: item,
+          channel: {
+            handle: channel.handle,
+            name: channel.name,
+            youtube_channel_id: channel.youtube_channel_id,
+          },
+        })
+      }
+    >
       <Image
         source={{ uri: item.preview_image || 'https://placehold.co/120x80' }}
         style={styles.videoThumb}
@@ -334,13 +291,14 @@ export default function Youtube({ route, navigation }: Props) {
           {item.title}
         </Text>
         <Text style={styles.videoStats}>
-          {item.views ? item.views.toLocaleString() : 'N/A'} views • {item.likes ? item.likes.toLocaleString() : 'N/A'} likes
+          {item.views ? item.views.toLocaleString() : 'N/A'} views •{' '}
+          {item.likes ? item.likes.toLocaleString() : 'N/A'} likes
         </Text>
         <Text style={styles.videoDate}>
           {item.date_posted ? new Date(item.date_posted).toLocaleDateString() : 'N/A'}
         </Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   // Render header
@@ -371,37 +329,6 @@ export default function Youtube({ route, navigation }: Props) {
       </View>
 
       <View style={styles.sectionPadding}>
-        <Text style={styles.sectionTitle}>AI-Generated Channel Summary</Text>
-        <Text style={styles.aboutText}>
-          {channelSummary || 'No summary available. Click "Analyze Comments" to generate one.'}
-        </Text>
-      </View>
-
-      <View style={styles.sectionPadding}>
-        <Text style={styles.sectionTitle}>Sentiment Analysis</Text>
-        {sentiment ? (
-          <View>
-            <Text style={styles.aboutText}>
-              Positive: {sentiment.positive_percentage.toFixed(2)}%
-            </Text>
-            <Text style={styles.aboutText}>
-              Negative: {sentiment.negative_percentage.toFixed(2)}%
-            </Text>
-            <Text style={styles.aboutText}>
-              Average Score: {sentiment.average_score.toFixed(2)}
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.aboutText}>
-            No sentiment analysis available. Click "Analyze Comments" to generate.
-          </Text>
-        )}
-        {analysisError && (
-          <Text style={styles.errorText}>{analysisError}</Text>
-        )}
-      </View>
-
-      <View style={styles.row}>
         <TouchableOpacity
           style={[styles.button, !channel.youtube_channel_id && styles.buttonDisabled]}
           onPress={collectVideos}
@@ -409,15 +336,6 @@ export default function Youtube({ route, navigation }: Props) {
         >
           <Text style={styles.buttonText}>
             {loadingVideos ? 'Collecting Videos...' : 'Collect Videos'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, !channel.youtube_channel_id && styles.buttonDisabled]}
-          onPress={analyzeComments}
-          disabled={loadingAnalysis || !channel.youtube_channel_id}
-        >
-          <Text style={styles.buttonText}>
-            {loadingAnalysis ? 'Analyzing...' : 'Analyze Comments'}
           </Text>
         </TouchableOpacity>
       </View>
